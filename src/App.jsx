@@ -1,20 +1,220 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import "./styles.css";
 
+const RadarMap = lazy(() => import("./RadarMap.jsx"));
+
 const DEFAULT_CENTER = {
+  label: "PDX",
   lat: 45.5898,
   lon: -122.5951,
 };
 
 const DEFAULT_RADIUS_NM = 120;
 const REFRESH_MS = 15_000;
+const ROTATION_MS = 8_000;
+const LIVE_ATC_PDX_URL = "https://www.liveatc.net/search/?icao=kpdx";
+
+const RADIUS_OPTIONS = [20, 40, 80, 120, 180, 250];
+
+const SCAN_MODES = [
+  { value: "nearest", label: "Closest / overhead" },
+  { value: "lowest", label: "Lowest altitude" },
+  { value: "fastest", label: "Fastest" },
+  { value: "airliners", label: "Airliners + cargo" },
+  { value: "ga", label: "GA / small planes" },
+  { value: "helicopters", label: "Helicopters" },
+  { value: "business", label: "Business jets" },
+];
+
+const TRIP_TRACKERS = [
+  {
+    id: "donna-europe-flight",
+    name: "Donna Europe Flight",
+    callsigns: [],
+    registrations: [],
+  },
+];
+
+const ATC_CANDIDATES = {
+  tower: {
+    facility: "PDX Tower",
+    frequencies: ["118.700", "123.775"],
+  },
+  approach: {
+    facility: "Portland Approach / Departure",
+    frequencies: ["118.100", "124.350", "126.900", "127.850"],
+  },
+  seattle: {
+    facility: "Seattle Center (PDX area)",
+    frequencies: ["128.300", "124.200", "128.150", "125.800", "126.600", "119.650"],
+  },
+  oakland: {
+    facility: "Oakland Center (southbound handoff candidate)",
+    frequencies: ["sector varies"],
+  },
+};
+
+const DIRECTION_WORDS = [
+  "north",
+  "north-northeast",
+  "northeast",
+  "east-northeast",
+  "east",
+  "east-southeast",
+  "southeast",
+  "south-southeast",
+  "south",
+  "south-southwest",
+  "southwest",
+  "west-southwest",
+  "west",
+  "west-northwest",
+  "northwest",
+  "north-northwest",
+];
+
+const DIRECTION_SHORT = [
+  "N",
+  "NNE",
+  "NE",
+  "ENE",
+  "E",
+  "ESE",
+  "SE",
+  "SSE",
+  "S",
+  "SSW",
+  "SW",
+  "WSW",
+  "W",
+  "WNW",
+  "NW",
+  "NNW",
+];
+
+function cleanText(value) {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function titleCase(value) {
+  const text = cleanText(value);
+  if (!text) return "";
+  if (text !== text.toUpperCase()) return text;
+  return text
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase())
+    .replace(/\bAtc\b/g, "ATC")
+    .replace(/\bPdx\b/g, "PDX");
+}
+
+function firstFinite(values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
+function toRadians(degrees) {
+  return (degrees * Math.PI) / 180;
+}
+
+function toDegrees(radians) {
+  return (radians * 180) / Math.PI;
+}
+
+function distanceNm(from, to) {
+  if (!Number.isFinite(to.lat) || !Number.isFinite(to.lon)) return null;
+  const earthRadiusNm = 3440.065;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLon = toRadians(to.lon - from.lon);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusNm * c;
+}
+
+function bearingDegrees(from, to) {
+  if (!Number.isFinite(to.lat) || !Number.isFinite(to.lon)) return null;
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const dLon = toRadians(to.lon - from.lon);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+
+function directionIndex(degrees) {
+  const number = Number(degrees);
+  if (!Number.isFinite(number)) return null;
+  return Math.round((((number % 360) + 360) % 360) / 22.5) % 16;
+}
+
+function directionWord(degrees) {
+  const index = directionIndex(degrees);
+  return index == null ? "" : DIRECTION_WORDS[index];
+}
+
+function directionShort(degrees) {
+  const index = directionIndex(degrees);
+  return index == null ? "" : DIRECTION_SHORT[index];
+}
+
+function normalizeAltitude(value) {
+  if (value === "ground") return "ground";
+  return firstFinite([value]);
+}
+
+function normalizeAircraft(plane) {
+  const lat = firstFinite([plane.lat, plane.latitude]);
+  const lon = firstFinite([plane.lon, plane.lng, plane.longitude]);
+  const fallbackDistance = distanceNm(DEFAULT_CENTER, { lat, lon });
+  const fallbackBearing = bearingDegrees(DEFAULT_CENTER, { lat, lon });
+  const distance = firstFinite([plane.distanceNm, plane.dst, fallbackDistance]);
+  const bearing = firstFinite([plane.dir, plane.bearing, fallbackBearing]);
+  const altitude = normalizeAltitude(plane.altitude ?? plane.alt_baro ?? plane.alt_geom);
+
+  return {
+    raw: plane,
+    id: cleanText(plane.hex || plane.icao || plane.flight || `${lat}-${lon}`),
+    hex: cleanText(plane.hex || plane.icao),
+    callsign: cleanText(plane.flight || plane.callsign),
+    registration: cleanText(plane.registration || plane.r || plane.reg),
+    typeCode: cleanText(plane.typeCode || plane.t),
+    description: titleCase(plane.description || plane.desc),
+    operator: titleCase(plane.operator || plane.ownOp),
+    category: cleanText(plane.category),
+    squawk: cleanText(plane.squawk),
+    emergency: cleanText(plane.emergency) && cleanText(plane.emergency) !== "none",
+    alert: Boolean(plane.alert),
+    lat,
+    lon,
+    altitude,
+    groundSpeed: firstFinite([plane.groundSpeed, plane.gs, plane.speed]),
+    track: firstFinite([plane.track, plane.heading, plane.nav_heading]),
+    verticalRate: firstFinite([plane.verticalRate, plane.baro_rate, plane.geom_rate]),
+    seen: firstFinite([plane.seenPos, plane.seen_pos, plane.seen]),
+    distanceNm: distance,
+    bearingFromCenter: bearing,
+  };
+}
 
 function formatAlt(altitude) {
   if (altitude == null) return "n/a";
   if (altitude === "ground") return "GROUND";
-  return `${Number(altitude).toLocaleString()} ft`;
+  return `${Math.round(Number(altitude)).toLocaleString()} ft`;
+}
+
+function numericAltitude(plane) {
+  if (plane.altitude === "ground") return 0;
+  const altitude = Number(plane.altitude);
+  return Number.isFinite(altitude) ? altitude : null;
 }
 
 function formatSpeed(speed) {
@@ -30,6 +230,12 @@ function formatRate(rate) {
   return `${sign}${Math.round(number)} fpm`;
 }
 
+function formatHeading(heading) {
+  const number = Number(heading);
+  if (!Number.isFinite(number)) return "n/a";
+  return `${Math.round(number)}° ${directionShort(number)}`;
+}
+
 function ageText(seconds) {
   const number = Number(seconds);
   if (!Number.isFinite(number)) return "fresh-ish";
@@ -38,82 +244,188 @@ function ageText(seconds) {
 }
 
 function aircraftLabel(plane) {
-  return plane.flight || plane.registration || plane.hex || "UNKNOWN";
+  return plane.callsign || plane.registration || plane.hex || "UNKNOWN";
 }
 
-function makeAircraftGeoJson(aircraft) {
+function aircraftTypeLabel(plane) {
+  return plane.description || plane.typeCode || "Aircraft type unavailable";
+}
+
+function operatorLabel(plane) {
+  return plane.operator || plane.description || plane.typeCode || "Unknown operator";
+}
+
+function movementState(plane) {
+  if (!plane) return "Unknown";
+  if (plane.altitude === "ground") return "Ground";
+  const rate = Number(plane.verticalRate);
+  if (!Number.isFinite(rate)) return "Level";
+  if (rate > 250) return "Climbing";
+  if (rate < -250) return "Descending";
+  return "Level";
+}
+
+function locationText(plane) {
+  if (!plane) return "No aircraft selected";
+  const distance = Number(plane.distanceNm);
+  const bearing = Number(plane.bearingFromCenter);
+  if (!Number.isFinite(distance) || !Number.isFinite(bearing)) {
+    return `Position near ${DEFAULT_CENTER.label} unavailable`;
+  }
+  if (distance < 1) return `Over ${DEFAULT_CENTER.label}`;
+  return `${Math.round(distance)} NM ${directionWord(bearing)} of ${DEFAULT_CENTER.label}`;
+}
+
+function isAirlinerOrCargo(plane) {
+  const blob = [
+    plane.callsign,
+    plane.operator,
+    plane.description,
+    plane.typeCode,
+    plane.category,
+  ]
+    .join(" ")
+    .toUpperCase();
+  return (
+    /\b(AAL|ASA|DAL|FDX|FFT|GTI|HAL|JBU|QXE|SWA|UAL|UPS|WJA)\b/.test(blob) ||
+    /(AIRLINES|AIRWAYS|CARGO|FEDEX|UPS|ATLAS|SOUTHWEST|ALASKA|DELTA|UNITED|AMERICAN|JETBLUE|HAWAIIAN)/.test(blob) ||
+    /(AIRBUS|BOEING|EMBRAER|BOMBARDIER|CANADAIR)/.test(blob) ||
+    ["A3", "A4", "A5"].includes(plane.category)
+  );
+}
+
+function isHelicopter(plane) {
+  const blob = [plane.description, plane.typeCode, plane.category].join(" ").toUpperCase();
+  return (
+    plane.category === "A7" ||
+    /HELICOPTER|ROTORCRAFT|ROTOR/.test(blob) ||
+    /\b(AS50|AS55|B06|B407|EC20|EC30|EC35|H60|R22|R44|R66|S76)\b/.test(blob)
+  );
+}
+
+function isBusinessJet(plane) {
+  const blob = [plane.description, plane.typeCode, plane.operator].join(" ").toUpperCase();
+  return /(CITATION|LEARJET|GULFSTREAM|FALCON|GLOBAL|CHALLENGER|PHENOM|HAWKER|BOMBARDIER)/.test(blob) ||
+    /\b(C25|C5[256]|C6[58]|C7[056]|CL3|CL6|E5[05]P|F2TH|GLF|LJ|PRM1|BE40)\b/.test(blob);
+}
+
+function isGeneralAviation(plane) {
+  const altitude = numericAltitude(plane);
+  const speed = Number(plane.groundSpeed);
+  const blob = [plane.description, plane.typeCode, plane.operator].join(" ").toUpperCase();
+  return (
+    !isAirlinerOrCargo(plane) &&
+    !isBusinessJet(plane) &&
+    !isHelicopter(plane) &&
+    (["A1", "A2"].includes(plane.category) ||
+      /(CESSNA|PIPER|CIRRUS|BEECH|DIAMOND|MOONEY|LANCAIR|VANS|VAN'S|ROBINSON)/.test(blob) ||
+      /\b(C1[5782][025]|C20[568]|C30[36]|C40[12]|C82|P28|PA|BE3|BE2|DA4|SR2|RV)\b/.test(blob) ||
+      (Number.isFinite(speed) && speed < 260 && (altitude == null || altitude < 18000)))
+  );
+}
+
+function compareDistance(a, b) {
+  return Number(a.distanceNm ?? 999999) - Number(b.distanceNm ?? 999999);
+}
+
+function compareAltitude(a, b) {
+  return Number(numericAltitude(a) ?? 999999) - Number(numericAltitude(b) ?? 999999);
+}
+
+function compareSpeed(a, b) {
+  return Number(b.groundSpeed ?? 0) - Number(a.groundSpeed ?? 0);
+}
+
+function aircraftForScanMode(aircraft, mode) {
+  let candidates = [...aircraft];
+  if (mode === "airliners") candidates = candidates.filter(isAirlinerOrCargo);
+  if (mode === "ga") candidates = candidates.filter(isGeneralAviation);
+  if (mode === "helicopters") candidates = candidates.filter(isHelicopter);
+  if (mode === "business") candidates = candidates.filter(isBusinessJet);
+
+  if (mode === "lowest") return candidates.sort(compareAltitude);
+  if (mode === "fastest") return candidates.sort(compareSpeed);
+  return candidates.sort(compareDistance);
+}
+
+function atcCandidateFor(plane) {
+  if (!plane) {
+    return {
+      primary: ATC_CANDIDATES.approach,
+      confidence: "Low",
+      reason: "No aircraft selected yet.",
+      candidates: Object.values(ATC_CANDIDATES),
+    };
+  }
+
+  const altitude = numericAltitude(plane);
+  const distance = Number(plane.distanceNm);
+  const heading = Number(plane.track);
+  const southbound = Number.isFinite(heading) && heading >= 140 && heading <= 220;
+  const closeToPdx = Number.isFinite(distance) && distance <= 8;
+  const terminalArea = Number.isFinite(distance) && distance <= 45;
+  const highAltitude = altitude != null && altitude >= 18000;
+
+  if (closeToPdx && (altitude == null || altitude < 3500)) {
+    return {
+      primary: ATC_CANDIDATES.tower,
+      confidence: "Medium",
+      reason: "Low and very near PDX, so tower is a plausible candidate. ADS-B cannot confirm the assigned frequency.",
+      candidates: [ATC_CANDIDATES.tower, ATC_CANDIDATES.approach, ATC_CANDIDATES.seattle],
+    };
+  }
+
+  if (terminalArea && !highAltitude) {
+    return {
+      primary: ATC_CANDIDATES.approach,
+      confidence: "Medium",
+      reason: "Inside the PDX terminal area and below cruise altitude, so Portland Approach / Departure is the strongest candidate.",
+      candidates: [ATC_CANDIDATES.approach, ATC_CANDIDATES.tower, ATC_CANDIDATES.seattle],
+    };
+  }
+
+  if (southbound && highAltitude && Number.isFinite(distance) && distance > 80) {
+    return {
+      primary: ATC_CANDIDATES.oakland,
+      confidence: "Low",
+      reason: "High-altitude southbound traffic may later hand off toward Oakland Center. Treat this as a planning hint only.",
+      candidates: [ATC_CANDIDATES.seattle, ATC_CANDIDATES.oakland, ATC_CANDIDATES.approach],
+    };
+  }
+
   return {
-    type: "FeatureCollection",
-    features: aircraft.map((plane) => ({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [plane.lon, plane.lat],
-      },
-      properties: {
-        hex: plane.hex,
-        label: aircraftLabel(plane),
-        flight: plane.flight,
-        altitude: plane.altitude ?? "",
-        speed: plane.groundSpeed ?? "",
-        track: Number(plane.track) || 0,
-        emergency: plane.emergency || "",
-      },
-    })),
+    primary: ATC_CANDIDATES.seattle,
+    confidence: "Low",
+    reason: "Outside the close PDX terminal picture or at cruise altitude, so a Seattle Center PDX-area sector is a reasonable candidate.",
+    candidates: [ATC_CANDIDATES.seattle, ATC_CANDIDATES.approach, ATC_CANDIDATES.oakland],
   };
 }
 
-function sortAircraft(aircraft, mode) {
-  const copy = [...aircraft];
-  if (mode === "lowest") {
-    return copy.sort((a, b) => {
-      const aa = a.altitude === "ground" ? 0 : Number(a.altitude ?? 999999);
-      const bb = b.altitude === "ground" ? 0 : Number(b.altitude ?? 999999);
-      return aa - bb;
-    });
-  }
-  if (mode === "fastest") {
-    return copy.sort((a, b) => Number(b.groundSpeed ?? 0) - Number(a.groundSpeed ?? 0));
-  }
-  return copy.sort((a, b) => Number(a.distanceNm ?? 999999) - Number(b.distanceNm ?? 999999));
+function findTrackedAircraft(tracker, aircraft) {
+  const callsigns = tracker.callsigns.map((value) => value.toUpperCase().trim()).filter(Boolean);
+  const registrations = tracker.registrations.map((value) => value.toUpperCase().trim()).filter(Boolean);
+  if (!callsigns.length && !registrations.length) return null;
+
+  return (
+    aircraft.find((plane) => {
+      const callsign = plane.callsign.toUpperCase();
+      const registration = plane.registration.toUpperCase();
+      return callsigns.includes(callsign) || registrations.includes(registration);
+    }) || null
+  );
 }
 
 export default function App() {
-  const mapNode = useRef(null);
-  const mapRef = useRef(null);
+  const [viewMode, setViewMode] = useState("wall");
   const [aircraft, setAircraft] = useState([]);
-  const [selectedHex, setSelectedHex] = useState(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [status, setStatus] = useState("Loading aircraft...");
   const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState("nearest");
+  const [scanMode, setScanMode] = useState("nearest");
   const [radiusNm, setRadiusNm] = useState(DEFAULT_RADIUS_NM);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [followSelected, setFollowSelected] = useState(false);
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-
-  const selectedAircraft = useMemo(() => {
-    return aircraft.find((plane) => plane.hex === selectedHex) || aircraft[0] || null;
-  }, [aircraft, selectedHex]);
-
-  const filteredAircraft = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q
-      ? aircraft.filter((plane) => {
-          const blob = [
-            plane.flight,
-            plane.registration,
-            plane.hex,
-            plane.type,
-            plane.squawk,
-            plane.category,
-          ].join(" ").toLowerCase();
-          return blob.includes(q);
-        })
-      : aircraft;
-
-    return sortAircraft(filtered, sortMode);
-  }, [aircraft, query, sortMode]);
+  const [rotationPaused, setRotationPaused] = useState(false);
 
   const fetchAircraft = useCallback(async () => {
     try {
@@ -133,13 +445,72 @@ export default function App() {
         return;
       }
 
-      setAircraft(data.aircraft || []);
+      const normalized = (data.aircraft || [])
+        .map(normalizeAircraft)
+        .filter((plane) => plane.id && Number.isFinite(plane.lat) && Number.isFinite(plane.lon));
+
+      setAircraft(normalized);
       setLastUpdated(data.fetchedAt || new Date().toISOString());
-      setStatus(`${data.aircraft?.length || 0} aircraft within ${data.radiusNm} NM`);
+      setStatus(`${normalized.length} aircraft within ${data.radiusNm || radiusNm} NM`);
     } catch (error) {
       setStatus(`Could not load aircraft: ${error.message}`);
     }
   }, [radiusNm]);
+
+  const wallAircraft = useMemo(() => {
+    return aircraftForScanMode(aircraft, scanMode);
+  }, [aircraft, scanMode]);
+
+  const selectedAircraft = wallAircraft[activeIndex] || wallAircraft[0] || null;
+  const selectedAtc = useMemo(() => atcCandidateFor(selectedAircraft), [selectedAircraft]);
+  const activeScanMode = SCAN_MODES.find((mode) => mode.value === scanMode) || SCAN_MODES[0];
+
+  const radarAircraft = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const searched = q
+      ? aircraft.filter((plane) => {
+          const blob = [
+            plane.callsign,
+            plane.registration,
+            plane.hex,
+            plane.typeCode,
+            plane.description,
+            plane.operator,
+            plane.squawk,
+            plane.category,
+          ]
+            .join(" ")
+            .toLowerCase();
+          return blob.includes(q);
+        })
+      : aircraft;
+
+    return aircraftForScanMode(searched, scanMode);
+  }, [aircraft, query, scanMode]);
+
+  const trackedFlights = useMemo(() => {
+    return TRIP_TRACKERS.map((tracker) => ({
+      ...tracker,
+      aircraft: findTrackedAircraft(tracker, aircraft),
+    }));
+  }, [aircraft]);
+
+  const stepAircraft = useCallback(
+    (direction) => {
+      setRotationPaused(true);
+      setActiveIndex((index) => {
+        if (!wallAircraft.length) return 0;
+        return (index + direction + wallAircraft.length) % wallAircraft.length;
+      });
+    },
+    [wallAircraft.length]
+  );
+
+  function selectPlane(plane) {
+    const index = wallAircraft.findIndex((candidate) => candidate.id === plane.id);
+    setActiveIndex(index >= 0 ? index : 0);
+    setRotationPaused(true);
+  }
 
   useEffect(() => {
     fetchAircraft();
@@ -152,268 +523,290 @@ export default function App() {
   }, [autoRefresh, fetchAircraft]);
 
   useEffect(() => {
-    if (!mapNode.current || mapRef.current) return;
-
-    const map = new maplibregl.Map({
-      container: mapNode.current,
-      center: [DEFAULT_CENTER.lon, DEFAULT_CENTER.lat],
-      zoom: 7.6,
-      pitch: 0,
-      bearing: 0,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
-          },
-        },
-        layers: [
-          {
-            id: "osm",
-            type: "raster",
-            source: "osm",
-            paint: {
-              "raster-saturation": -0.85,
-              "raster-brightness-min": 0.05,
-              "raster-brightness-max": 0.42,
-              "raster-contrast": 0.38,
-            },
-          },
-        ],
-      },
-    });
-
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
-    mapRef.current = map;
-
-    map.on("load", () => {
-      map.addSource("aircraft", {
-        type: "geojson",
-        data: makeAircraftGeoJson([]),
-      });
-
-      map.addLayer({
-        id: "aircraft-glow",
-        type: "circle",
-        source: "aircraft",
-        paint: {
-          "circle-radius": 14,
-          "circle-color": [
-            "case",
-            ["!=", ["get", "emergency"], ""],
-            "#ff4d4d",
-            "#9affd2",
-          ],
-          "circle-opacity": 0.18,
-          "circle-blur": 0.75,
-        },
-      });
-
-      map.addLayer({
-        id: "aircraft-dot",
-        type: "circle",
-        source: "aircraft",
-        paint: {
-          "circle-radius": 4.5,
-          "circle-color": [
-            "case",
-            ["!=", ["get", "emergency"], ""],
-            "#ff4d4d",
-            "#d7ffe8",
-          ],
-          "circle-stroke-width": 1.5,
-          "circle-stroke-color": "#10231b",
-        },
-      });
-
-      map.addLayer({
-        id: "aircraft-plane",
-        type: "symbol",
-        source: "aircraft",
-        layout: {
-          "text-field": "✈",
-          "text-size": 20,
-          "text-rotate": ["get", "track"],
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
-        },
-        paint: {
-          "text-color": [
-            "case",
-            ["!=", ["get", "emergency"], ""],
-            "#ff4d4d",
-            "#9affd2",
-          ],
-          "text-halo-color": "#07120d",
-          "text-halo-width": 1.5,
-        },
-      });
-
-      map.addLayer({
-        id: "aircraft-label",
-        type: "symbol",
-        source: "aircraft",
-        layout: {
-          "text-field": ["get", "label"],
-          "text-size": 11,
-          "text-anchor": "top",
-          "text-offset": [0, 1.15],
-          "text-allow-overlap": false,
-        },
-        paint: {
-          "text-color": "#eaf7ef",
-          "text-halo-color": "#07120d",
-          "text-halo-width": 1.25,
-        },
-      });
-
-      map.on("click", "aircraft-plane", (event) => {
-        const feature = event.features?.[0];
-        if (!feature) return;
-        const hex = feature.properties?.hex;
-        if (hex) setSelectedHex(hex);
-      });
-
-      map.on("mouseenter", "aircraft-plane", () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-
-      map.on("mouseleave", "aircraft-plane", () => {
-        map.getCanvas().style.cursor = "";
-      });
-    });
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
-  }, []);
+    setActiveIndex(0);
+  }, [scanMode]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
-
-    const update = () => {
-      const source = map.getSource("aircraft");
-      if (source) {
-        source.setData(makeAircraftGeoJson(aircraft));
-      }
-    };
-
-    if (map.loaded()) update();
-    else map.once("load", update);
-  }, [aircraft]);
+    if (activeIndex < wallAircraft.length) return;
+    setActiveIndex(0);
+  }, [activeIndex, wallAircraft.length]);
 
   useEffect(() => {
-    if (!followSelected || !selectedAircraft || !mapRef.current) return;
-
-    mapRef.current.easeTo({
-      center: [selectedAircraft.lon, selectedAircraft.lat],
-      zoom: 8.6,
-      duration: 900,
-    });
-  }, [followSelected, selectedAircraft]);
-
-  function selectPlane(plane) {
-    setSelectedHex(plane.hex);
-    if (mapRef.current) {
-      mapRef.current.easeTo({
-        center: [plane.lon, plane.lat],
-        zoom: 9,
-        duration: 700,
-      });
-    }
-  }
+    if (rotationPaused || wallAircraft.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveIndex((index) => (index + 1) % wallAircraft.length);
+    }, ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [rotationPaused, wallAircraft.length]);
 
   return (
-    <main className="app">
-      <section className="map-wrap">
-        <div ref={mapNode} className="map" />
-
-        <div className="topbar">
-          <div>
-            <div className="eyebrow">LIVE AIRSPACE</div>
-            <h1>Flight Ops Dashboard</h1>
-          </div>
-          <div className="status-pill">
-            <span className={autoRefresh ? "pulse on" : "pulse"} />
-            {status}
-          </div>
+    <main className={`app ${viewMode}-mode`}>
+      <header className="app-header">
+        <div>
+          <div className="eyebrow">FLIGHTOP / {DEFAULT_CENTER.label} AREA</div>
+          <h1>Wall Display</h1>
         </div>
-
-        <div className="controls">
-          <button onClick={fetchAircraft}>Refresh now</button>
-          <button onClick={() => setAutoRefresh((value) => !value)}>
-            Auto: {autoRefresh ? "on" : "off"}
+        <nav className="mode-switch" aria-label="Display mode">
+          <button
+            className={viewMode === "wall" ? "active" : ""}
+            onClick={() => setViewMode("wall")}
+          >
+            Wall Mode
           </button>
-          <button onClick={() => setFollowSelected((value) => !value)}>
-            Follow: {followSelected ? "on" : "off"}
+          <button
+            className={viewMode === "radar" ? "active" : ""}
+            onClick={() => setViewMode("radar")}
+          >
+            Radar / Setup
           </button>
-          <label>
-            Radius
-            <select value={radiusNm} onChange={(event) => setRadiusNm(Number(event.target.value))}>
-              <option value="40">40 NM</option>
-              <option value="80">80 NM</option>
-              <option value="120">120 NM</option>
-              <option value="180">180 NM</option>
-              <option value="250">250 NM</option>
-            </select>
-          </label>
-        </div>
+        </nav>
+      </header>
 
-        <div className="credit">
-          Data: adsb.fi open data · Map: OpenStreetMap
-        </div>
-      </section>
+      {viewMode === "wall" ? (
+        <section className="wall-layout" aria-label="FlightOp wall mode">
+          <section className="wall-board">
+            <div className="board-topline">
+              <span>{status}</span>
+              <span>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleTimeString()}` : "Syncing"}</span>
+            </div>
 
-      <aside className={`panel ${isPanelCollapsed ? "collapsed" : ""}`}>
-        <button className="collapse" onClick={() => setIsPanelCollapsed((value) => !value)}>
-          {isPanelCollapsed ? "Show" : "Hide"}
-        </button>
+            {selectedAircraft ? (
+              <>
+                <div className="identity-strip">
+                  <div>
+                    <span className="kicker">Operator / type</span>
+                    <strong>{operatorLabel(selectedAircraft)}</strong>
+                  </div>
+                  <div className="flight-badge">
+                    <span>{aircraftLabel(selectedAircraft)}</span>
+                    <small>{selectedAircraft.registration || selectedAircraft.hex || "No registration"}</small>
+                  </div>
+                </div>
 
-        {!isPanelCollapsed && (
-          <>
-            <section className="hero-card">
-              <div className="card-title">Currently watching</div>
+                <div className="aircraft-type">{aircraftTypeLabel(selectedAircraft)}</div>
+
+                <div className="metrics-grid" aria-label="Aircraft metrics">
+                  <div>
+                    <span>Altitude</span>
+                    <strong>{formatAlt(selectedAircraft.altitude)}</strong>
+                  </div>
+                  <div>
+                    <span>Ground speed</span>
+                    <strong>{formatSpeed(selectedAircraft.groundSpeed)}</strong>
+                  </div>
+                  <div>
+                    <span>Heading</span>
+                    <strong>{formatHeading(selectedAircraft.track)}</strong>
+                  </div>
+                  <div>
+                    <span>Vertical</span>
+                    <strong>{movementState(selectedAircraft)}</strong>
+                    <small>{formatRate(selectedAircraft.verticalRate)}</small>
+                  </div>
+                </div>
+
+                <div className="location-marquee">
+                  <span>{locationText(selectedAircraft)}</span>
+                </div>
+
+                <section className="atc-panel" aria-label="Likely ATC candidate">
+                  <div>
+                    <span className="kicker amber">Likely ATC</span>
+                    <h2>{selectedAtc.primary.facility}</h2>
+                    <p>{selectedAtc.primary.frequencies.join(" / ")}</p>
+                  </div>
+                  <div className="confidence">
+                    <span>Confidence</span>
+                    <strong>{selectedAtc.confidence}</strong>
+                  </div>
+                  <p className="reason">{selectedAtc.reason}</p>
+                  <div className="candidate-list" aria-label="ATC candidate frequencies">
+                    {selectedAtc.candidates.map((candidate) => (
+                      <span key={candidate.facility}>
+                        {candidate.facility}: {candidate.frequencies.join(", ")}
+                      </span>
+                    ))}
+                  </div>
+                  <a href={LIVE_ATC_PDX_URL} target="_blank" rel="noreferrer">
+                    Open LiveATC PDX feeds
+                  </a>
+                </section>
+              </>
+            ) : (
+              <div className="empty-board">
+                <span className="kicker amber">Awaiting aircraft</span>
+                <p>No readable ADS-B positions are loaded for this area yet.</p>
+              </div>
+            )}
+          </section>
+
+          <aside className="wall-controls" aria-label="Wall controls">
+            <section className="control-bank">
+              <span className="kicker">Rotation</span>
+              <div className="button-row">
+                <button onClick={() => stepAircraft(-1)}>Previous</button>
+                <button onClick={() => setRotationPaused((value) => !value)}>
+                  {rotationPaused ? "Resume" : "Pause"}
+                </button>
+                <button onClick={() => stepAircraft(1)}>Next</button>
+              </div>
+              <p>
+                {rotationPaused
+                  ? "Rotation paused"
+                  : `Rotating every ${ROTATION_MS / 1000} seconds`}
+              </p>
+            </section>
+
+            <section className="control-bank">
+              <label>
+                <span className="kicker">Scan mode</span>
+                <select value={scanMode} onChange={(event) => setScanMode(event.target.value)}>
+                  {SCAN_MODES.map((mode) => (
+                    <option value={mode.value} key={mode.value}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="kicker">Area radius</span>
+                <select value={radiusNm} onChange={(event) => setRadiusNm(Number(event.target.value))}>
+                  {RADIUS_OPTIONS.map((radius) => (
+                    <option value={radius} key={radius}>
+                      {radius} NM
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </section>
+
+            <section className="control-bank">
+              <span className="kicker">Data</span>
+              <div className="button-row split">
+                <button onClick={fetchAircraft}>Refresh</button>
+                <button onClick={() => setAutoRefresh((value) => !value)}>
+                  Auto {autoRefresh ? "on" : "off"}
+                </button>
+              </div>
+              <p>adsb.fi open ADS-B data via /api/aircraft</p>
+            </section>
+
+            <section className="control-bank upcoming">
+              <span className="kicker">Up next / {activeScanMode.label}</span>
+              {wallAircraft.slice(0, 6).map((plane, index) => (
+                <button
+                  key={`${plane.id}-${index}`}
+                  className={plane.id === selectedAircraft?.id ? "active" : ""}
+                  onClick={() => {
+                    setActiveIndex(index);
+                    setRotationPaused(true);
+                  }}
+                >
+                  <span>{aircraftLabel(plane)}</span>
+                  <small>{formatAlt(plane.altitude)} · {locationText(plane)}</small>
+                </button>
+              ))}
+              {!wallAircraft.length && <p>No matches for this scan mode.</p>}
+            </section>
+
+            <section className="control-bank trip-watch">
+              <span className="kicker amber">Trip watch structure</span>
+              {trackedFlights.map((tracker) => (
+                <div key={tracker.id}>
+                  <strong>{tracker.name}</strong>
+                  {tracker.aircraft ? (
+                    <p>
+                      {locationText(tracker.aircraft)} · {formatAlt(tracker.aircraft.altitude)} ·{" "}
+                      {formatSpeed(tracker.aircraft.groundSpeed)} · {aircraftTypeLabel(tracker.aircraft)}
+                    </p>
+                  ) : (
+                    <p>Waiting for a known callsign or registration.</p>
+                  )}
+                </div>
+              ))}
+            </section>
+          </aside>
+        </section>
+      ) : (
+        <section className="radar-layout" aria-label="Radar setup mode">
+          <Suspense
+            fallback={
+              <section className="map-wrap map-loading">
+                <div className="radar-overlay">
+                  <span className="kicker">Radar / Setup</span>
+                  <strong>Loading map...</strong>
+                </div>
+                <div className="credit">Data: adsb.fi open data · Map: OpenStreetMap</div>
+              </section>
+            }
+          >
+            <RadarMap
+              aircraft={aircraft}
+              center={DEFAULT_CENTER}
+              onSelectPlane={selectPlane}
+              selectedAircraft={selectedAircraft}
+              status={status}
+            />
+          </Suspense>
+
+          <aside className="radar-panel">
+            <section className="control-bank">
+              <label>
+                <span className="kicker">Search</span>
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Flight, reg, hex, type"
+                />
+              </label>
+              <label>
+                <span className="kicker">Scan mode</span>
+                <select value={scanMode} onChange={(event) => setScanMode(event.target.value)}>
+                  {SCAN_MODES.map((mode) => (
+                    <option value={mode.value} key={mode.value}>
+                      {mode.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="kicker">Radius</span>
+                <select value={radiusNm} onChange={(event) => setRadiusNm(Number(event.target.value))}>
+                  {RADIUS_OPTIONS.map((radius) => (
+                    <option value={radius} key={radius}>
+                      {radius} NM
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </section>
+
+            <section className="radar-selected">
+              <span className="kicker amber">Selected aircraft</span>
               {selectedAircraft ? (
                 <>
                   <h2>{aircraftLabel(selectedAircraft)}</h2>
-                  <div className="big-meta">
-                    <span>{formatAlt(selectedAircraft.altitude)}</span>
-                    <span>{formatSpeed(selectedAircraft.groundSpeed)}</span>
-                  </div>
-                  <div className="grid">
+                  <p>{aircraftTypeLabel(selectedAircraft)}</p>
+                  <dl>
                     <div>
-                      <small>Type</small>
-                      <b>{selectedAircraft.type || "n/a"}</b>
+                      <dt>Altitude</dt>
+                      <dd>{formatAlt(selectedAircraft.altitude)}</dd>
                     </div>
                     <div>
-                      <small>Reg</small>
-                      <b>{selectedAircraft.registration || "n/a"}</b>
+                      <dt>Speed</dt>
+                      <dd>{formatSpeed(selectedAircraft.groundSpeed)}</dd>
                     </div>
                     <div>
-                      <small>Track</small>
-                      <b>{Math.round(Number(selectedAircraft.track) || 0)}°</b>
+                      <dt>Heading</dt>
+                      <dd>{formatHeading(selectedAircraft.track)}</dd>
                     </div>
                     <div>
-                      <small>Vert rate</small>
-                      <b>{formatRate(selectedAircraft.verticalRate)}</b>
+                      <dt>Seen</dt>
+                      <dd>{ageText(selectedAircraft.seen)}</dd>
                     </div>
-                    <div>
-                      <small>Squawk</small>
-                      <b>{selectedAircraft.squawk || "n/a"}</b>
-                    </div>
-                    <div>
-                      <small>Seen</small>
-                      <b>{ageText(selectedAircraft.seenPos ?? selectedAircraft.seen)}</b>
-                    </div>
-                  </div>
+                  </dl>
                   {selectedAircraft.hex && (
                     <a
-                      className="external"
                       href={`https://globe.adsb.fi/?icao=${selectedAircraft.hex}`}
                       target="_blank"
                       rel="noreferrer"
@@ -423,33 +816,20 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <p>No aircraft loaded yet.</p>
+                <p>No aircraft selected.</p>
               )}
             </section>
 
-            <section className="tools">
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search flight, hex, type..."
-              />
-              <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-                <option value="nearest">Nearest</option>
-                <option value="lowest">Lowest</option>
-                <option value="fastest">Fastest</option>
-              </select>
-            </section>
-
             <section className="aircraft-list">
-              {filteredAircraft.slice(0, 60).map((plane) => (
+              {radarAircraft.slice(0, 80).map((plane) => (
                 <button
-                  key={`${plane.hex}-${plane.flight}`}
-                  className={`plane-row ${plane.hex === selectedAircraft?.hex ? "active" : ""}`}
+                  key={plane.id}
+                  className={plane.id === selectedAircraft?.id ? "plane-row active" : "plane-row"}
                   onClick={() => selectPlane(plane)}
                 >
                   <span>
                     <b>{aircraftLabel(plane)}</b>
-                    <small>{plane.type || plane.registration || plane.hex}</small>
+                    <small>{aircraftTypeLabel(plane)}</small>
                   </span>
                   <span className="right">
                     <b>{formatAlt(plane.altitude)}</b>
@@ -458,18 +838,9 @@ export default function App() {
                 </button>
               ))}
             </section>
-
-            <footer>
-              <p>
-                Last update: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "n/a"}
-              </p>
-              <p>
-                Tip: put this browser window on monitor 3, then hit fullscreen.
-              </p>
-            </footer>
-          </>
-        )}
-      </aside>
+          </aside>
+        </section>
+      )}
     </main>
   );
 }
