@@ -1,8 +1,6 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { formatRoute, formatRouteDetail, getRouteForAircraft } from "./lib/routeResolver.js";
 import "./styles.css";
-
-const RadarMap = lazy(() => import("./RadarMap.jsx"));
 
 const DEFAULT_CENTER = {
   label: "PDX",
@@ -694,28 +692,6 @@ function findFollowedAircraft(aircraft, target) {
   return aircraft.find((plane) => aircraftMatchesFollowTarget(plane, target)) || null;
 }
 
-function SplitFlapTile({ label, value, detail, size = "", tone = "" }) {
-  return (
-    <div className={`split-flap-tile ${size} ${tone}`.trim()}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {detail && <small>{detail}</small>}
-    </div>
-  );
-}
-
-function SplitFlapRow({ label, value, detail, size = "", tone = "" }) {
-  return (
-    <div className={`split-flap-row ${size}`.trim()}>
-      <SplitFlapTile label={label} value={value} detail={detail} tone={tone} />
-    </div>
-  );
-}
-
-function SplitFlapBoard({ children }) {
-  return <section className="wall-board split-flap-board">{children}</section>;
-}
-
 function WallAircraftDisplay({
   activeScanMode,
   displayedAircraftCount,
@@ -727,118 +703,83 @@ function WallAircraftDisplay({
   selectedAtc,
   status,
 }) {
-  const countText = followTarget
-    ? "1 tracked aircraft"
-    : hiddenGroundCount > 0
-      ? `${displayedAircraftCount.toLocaleString()} airborne / ${hiddenGroundCount.toLocaleString()} ground hidden`
-      : `${displayedAircraftCount.toLocaleString()} aircraft`;
+  const sourceRoute = selectedAircraft ? getRouteForAircraft(selectedAircraft) : null;
+  const hasSourceRoute = Boolean(
+    sourceRoute?.origin ||
+      sourceRoute?.destination ||
+      sourceRoute?.originName ||
+      sourceRoute?.destinationName
+  );
+  const statusText = followTarget
+    ? `Following ${followTarget.label}`
+    : `${displayedAircraftCount.toLocaleString()} airborne${hiddenGroundCount ? ` · ${hiddenGroundCount} ground hidden` : ""}`;
+  const tickerText = selectedAircraft
+    ? `${aircraftTypeLabel(selectedAircraft)} ${locationText(selectedAircraft).toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasSourceRoute ? ` Route ${formatRoute(sourceRoute)}.` : " Route unavailable."}`
+    : followTarget
+      ? `Waiting for the next ADS-B position for ${followTarget.label}.`
+      : "No airborne ADS-B positions match this scan right now.";
 
   return (
-    <SplitFlapBoard>
-      <div className="split-topline" aria-label="Wall status">
-        <SplitFlapTile
-          label="FLIGHTOP"
-          value={followTarget ? `FOLLOW ${followTarget.label}` : `${monitorArea.label} SCAN`}
-          tone="brand"
-        />
-        <SplitFlapTile label={followTarget ? "MODE" : "SCAN MODE"} value={followTarget ? "Follow Mode" : activeScanMode.label} />
-        <SplitFlapTile label={followTarget ? "TRACK" : "AIRCRAFT COUNT"} value={countText} tone="amber-tile" />
-        <SplitFlapTile
-          label="SYNC"
-          value={lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "Syncing"}
-          detail={status}
-        />
-      </div>
+    <section className="wall-sign" aria-label="FlightOp wall display">
+      <header className="sign-rail">
+        <span className="sign-brand">FLIGHTOP</span>
+        <span>{followTarget ? "FOLLOW MODE" : monitorArea.label}</span>
+        <span>{followTarget ? followTarget.label : activeScanMode.label}</span>
+        <span>{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "Syncing"}</span>
+      </header>
 
       {selectedAircraft ? (
-        <>
-          <div className="split-flap-stack primary-rows">
-            <SplitFlapRow
-              label="Operator / type"
-              value={operatorLabel(selectedAircraft)}
-              detail={selectedAircraft.operator ? aircraftTypeLabel(selectedAircraft) : ""}
-              size="hero-row"
-            />
-            <SplitFlapRow
-              label="Flight / registration"
-              value={aircraftLabel(selectedAircraft)}
-              detail={selectedAircraft.registration || selectedAircraft.hex || "No registration"}
-              size="large-row"
-              tone="amber-tile"
-            />
-            <SplitFlapRow
-              label="Route"
-              value={formatRoute(selectedAircraft)}
-              detail={formatRouteDetail(selectedAircraft)}
-              size="large-row route-row"
-              tone={selectedAircraft.origin || selectedAircraft.destination ? "" : "muted-tile"}
-            />
-            <SplitFlapRow
-              label="Location"
-              value={locationText(selectedAircraft)}
-              size="large-row"
-              tone="amber-tile"
-            />
-          </div>
-
-          <div className="split-metric-grid" aria-label="Aircraft details">
-            <SplitFlapTile label="Aircraft type" value={aircraftTypeLabel(selectedAircraft)} />
-            <SplitFlapTile label="Altitude" value={formatAlt(selectedAircraft.altitude)} />
-            <SplitFlapTile label="Speed" value={formatSpeed(selectedAircraft.groundSpeed)} />
-            <SplitFlapTile label="Heading" value={formatHeading(selectedAircraft.track)} />
-            <SplitFlapTile
-              label="Vertical"
-              value={movementState(selectedAircraft)}
-              detail={formatRate(selectedAircraft.verticalRate)}
-            />
-            <SplitFlapTile
-              label="Likely ATC"
-              value={selectedAtc.primary.facility}
-              detail={selectedAtc.primary.frequencies.join(" / ")}
-              tone="amber-tile"
-            />
-          </div>
-
-          <section className="atc-helper" aria-label="Likely ATC candidate">
-            <div>
-              <span className="kicker amber">ATC candidate</span>
-              <p>{selectedAtc.reason}</p>
-            </div>
-            <div className="confidence">
-              <span>Confidence</span>
-              <strong>{selectedAtc.confidence}</strong>
-            </div>
-            {selectedAtc.candidates.length > 0 && (
-              <div className="candidate-list" aria-label="ATC candidate frequencies">
-                {selectedAtc.candidates.map((candidate) => (
-                  <span key={candidate.facility}>
-                    {candidate.facility}: {candidate.frequencies.join(", ")}
-                  </span>
-                ))}
-              </div>
-            )}
-            <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">
-              Open LiveATC
-            </a>
+        <div className="sign-main">
+          <section className="sign-identity">
+            <span className="kicker">Operator</span>
+            <strong>{operatorLabel(selectedAircraft)}</strong>
+            {selectedAircraft.operator && <small>{aircraftTypeLabel(selectedAircraft)}</small>}
           </section>
-        </>
+
+          <section className="sign-flight">
+            <span className="kicker">Flight / registration</span>
+            <strong>{aircraftLabel(selectedAircraft)}</strong>
+            <p className="sign-location">{locationText(selectedAircraft)}</p>
+            <p className={hasSourceRoute ? "sign-route" : "sign-route muted"}>
+              {hasSourceRoute ? formatRoute(sourceRoute) : "Route unavailable"}
+            </p>
+          </section>
+
+          <section className="sign-readouts" aria-label="Aircraft details">
+            <div><span>Type</span><strong>{aircraftTypeLabel(selectedAircraft)}</strong></div>
+            <div><span>Altitude</span><strong>{formatAlt(selectedAircraft.altitude)}</strong></div>
+            <div><span>Speed</span><strong>{formatSpeed(selectedAircraft.groundSpeed)}</strong></div>
+            <div><span>Heading</span><strong>{formatHeading(selectedAircraft.track)}</strong></div>
+            <div><span>Vertical</span><strong>{movementState(selectedAircraft)} <small>{formatRate(selectedAircraft.verticalRate)}</small></strong></div>
+            <div className="sign-atc">
+              <span>Likely ATC</span>
+              <strong>{selectedAtc.primary.facility}</strong>
+              <small>{selectedAtc.primary.frequencies.join(" / ")}</small>
+              <em>Confidence: {selectedAtc.confidence} · {selectedAtc.reason}</em>
+              <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">LiveATC</a>
+            </div>
+          </section>
+        </div>
       ) : (
-        <div className="empty-board">
+        <div className="sign-empty">
           <span className="kicker amber">{followTarget ? "Following aircraft" : "Awaiting aircraft"}</span>
-          <p>
-            {followTarget
-              ? `Waiting for the next ADS-B position for ${followTarget.label}.`
-              : "No airborne ADS-B positions match this scan right now."}
-          </p>
+          <strong>{tickerText}</strong>
         </div>
       )}
-    </SplitFlapBoard>
+
+      <footer className="sign-ticker">
+        <span>LIVE</span>
+        <p>{tickerText}</p>
+        <small>{statusText}</small>
+      </footer>
+    </section>
   );
 }
 
 export default function App() {
   const [viewMode, setViewMode] = useState("wall");
   const [presentationMode, setPresentationMode] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [monitorArea, setMonitorArea] = useState(loadMonitorArea);
   const [drawMode, setDrawMode] = useState(false);
   const [draftBounds, setDraftBounds] = useState(null);
@@ -1208,7 +1149,14 @@ export default function App() {
           />
 
           {!presentationMode && (
-            <aside className="wall-controls" aria-label="Wall controls">
+            <>
+              <div className="wall-utility-bar">
+                <span>{rotationPaused ? "Rotation paused" : `Rotating every ${ROTATION_MS / 1000} seconds`}</span>
+                <button onClick={() => setSetupOpen((value) => !value)} aria-expanded={setupOpen}>
+                  {setupOpen ? "Close setup" : "Setup"}
+                </button>
+              </div>
+              <aside className={`wall-controls ${setupOpen ? "open" : ""}`} aria-label="Wall controls">
               <section className="control-bank rotation-controls">
                 <span className="kicker">Rotation</span>
                 <div className="button-row">
@@ -1266,6 +1214,7 @@ export default function App() {
                   <button onClick={() => setAutoRefresh((value) => !value)}>
                     Auto {autoRefresh ? "on" : "off"}
                   </button>
+                  <button onClick={() => setPresentationMode(true)}>Presentation</button>
                 </div>
                 <p>adsb.fi open ADS-B data via /api/aircraft</p>
               </section>
@@ -1338,35 +1287,25 @@ export default function App() {
                 ))}
               </section>
             </aside>
+            </>
           )}
         </section>
       ) : (
         <section className="radar-layout" aria-label="Radar setup mode">
-          <Suspense
-            fallback={
-              <section className="map-wrap map-loading">
-                <div className="radar-overlay">
-                  <span className="kicker">Radar / Setup</span>
-                  <strong>Loading map...</strong>
-                </div>
-                <div className="credit">Data: adsb.fi open data · Map: OpenStreetMap</div>
-              </section>
-            }
-          >
-            <RadarMap
-              aircraft={visibleAircraft}
-              center={monitorArea.center}
-              draftBounds={draftBounds}
-              drawMode={drawMode}
-              monitorArea={monitorArea}
-              onAreaDrawn={applyDrawnArea}
-              onCancelDrawArea={cancelDrawArea}
-              onDraftBoundsChange={setDraftBounds}
-              onSelectPlane={selectPlane}
-              selectedAircraft={selectedAircraft}
-              status={status}
-            />
-          </Suspense>
+          <section className="radar-setup-summary">
+            <span className="kicker amber">Active monitor area</span>
+            <strong>{monitorArea.label}</strong>
+            <p>{areaSummary(monitorArea)}</p>
+            <p>{status}</p>
+            <div className="button-row split area-actions">
+              <button onClick={useBrowserLocation}>Use my location</button>
+              <button onClick={resetToPdxArea}>Reset PDX</button>
+            </div>
+            <div className="radar-future-note">
+              <span className="kicker">Map drawing</span>
+              <p>Area drawing is being refined for a future setup update. Use your location or radius controls for now.</p>
+            </div>
+          </section>
 
           <aside className="radar-panel">
             <section className="control-bank">

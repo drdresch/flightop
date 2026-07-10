@@ -159,6 +159,11 @@ export default function RadarMap({
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
     mapRef.current = map;
 
+    // The setup panel can change size after the lazy-loaded map mounts.
+    // Keep MapLibre's canvas in lockstep with the visible map container.
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(mapNode.current);
+
     map.on("load", () => {
       map.addSource("monitor-area", {
         type: "geojson",
@@ -304,6 +309,7 @@ export default function RadarMap({
     });
 
     return () => {
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };
