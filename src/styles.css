@@ -1947,6 +1947,28 @@ dd {
   font-size: clamp(11px, 1vw, 16px);
 }
 
+.sign-operator {
+  display: grid;
+  gap: 6px;
+  margin-top: clamp(16px, 2.4vh, 30px);
+}
+
+.sign-operator span {
+  color: #92aaa3;
+  font-size: clamp(10px, 0.9vw, 13px);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sign-operator b {
+  color: #9fefd0;
+  font-size: clamp(18px, 2vw, 34px);
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .sign-flight {
   justify-content: start;
   padding-top: clamp(18px, 2vw, 34px);
@@ -1959,6 +1981,11 @@ dd {
   line-height: 0.92;
   letter-spacing: 0.025em;
   text-shadow: 0 0 22px rgba(159, 239, 208, 0.1);
+}
+
+.sign-flight.registration-only strong {
+  color: #d9eee6;
+  font-size: clamp(27px, 4vw, 68px);
 }
 
 .sign-location {
@@ -2111,6 +2138,20 @@ dd {
 }
 
 @media (max-width: 900px) {
+  .wall-mode.app {
+    height: auto;
+  }
+
+  .wall-mode .wall-layout,
+  .wall-mode .wall-sign {
+    height: auto;
+  }
+
+  .wall-mode .wall-layout,
+  .wall-mode .wall-sign {
+    grid-template-rows: auto;
+  }
+
   .wall-sign {
     height: auto;
   }
