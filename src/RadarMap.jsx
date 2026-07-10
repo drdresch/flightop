@@ -76,11 +76,17 @@ export default function RadarMap({
 
     const map = L.map(mapNode.current, {
       attributionControl: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false,
+      zoomAnimation: false,
       zoomControl: true,
     }).setView([center.lat, center.lon], 8);
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      keepBuffer: 5,
       maxZoom: 19,
+      updateWhenIdle: false,
+      updateWhenZooming: false,
       crossOrigin: true,
       attribution: "OpenStreetMap",
     }).addTo(map);
@@ -89,29 +95,44 @@ export default function RadarMap({
     areaLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
-    const resizeObserver = new ResizeObserver(() => map.invalidateSize(false));
+    let resizeFrame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => map.invalidateSize({ animate: false, pan: false }));
+    });
     resizeObserver.observe(mapNode.current);
+    requestAnimationFrame(() => map.invalidateSize({ animate: false, pan: false }));
 
-    map.on("click", (event) => {
+    map.on("mousedown", (event) => {
       if (!drawModeRef.current) return;
-      if (!drawStartRef.current) {
-        drawStartRef.current = event.latlng;
-        onDraftBoundsChangeRef.current?.(boundsFromPoints(event.latlng, event.latlng));
-        return;
-      }
-
-      const bounds = boundsFromPoints(drawStartRef.current, event.latlng);
-      drawStartRef.current = null;
-      onAreaDrawnRef.current?.(bounds);
+      drawStartRef.current = {
+        latlng: event.latlng,
+        point: event.containerPoint,
+      };
+      onDraftBoundsChangeRef.current?.(boundsFromPoints(event.latlng, event.latlng));
     });
 
     map.on("mousemove", (event) => {
       if (!drawModeRef.current || !drawStartRef.current) return;
-      onDraftBoundsChangeRef.current?.(boundsFromPoints(drawStartRef.current, event.latlng));
+      onDraftBoundsChangeRef.current?.(boundsFromPoints(drawStartRef.current.latlng, event.latlng));
+    });
+
+    map.on("mouseup", (event) => {
+      if (!drawModeRef.current || !drawStartRef.current) return;
+      const start = drawStartRef.current;
+      drawStartRef.current = null;
+
+      if (start.point.distanceTo(event.containerPoint) < 8) {
+        onDraftBoundsChangeRef.current?.(null);
+        return;
+      }
+
+      onAreaDrawnRef.current?.(boundsFromPoints(start.latlng, event.latlng));
     });
 
     return () => {
       resizeObserver.disconnect();
+      cancelAnimationFrame(resizeFrame);
       map.remove();
       mapRef.current = null;
       aircraftLayerRef.current = null;
@@ -161,6 +182,10 @@ export default function RadarMap({
     if (!drawMode) onDraftBoundsChange?.(null);
     if (mapRef.current) {
       mapRef.current.getContainer().style.cursor = drawMode ? "crosshair" : "grab";
+      mapRef.current.dragging[drawMode ? "disable" : "enable"]();
+      mapRef.current.boxZoom[drawMode ? "disable" : "enable"]();
+      mapRef.current.doubleClickZoom[drawMode ? "disable" : "enable"]();
+      mapRef.current.touchZoom[drawMode ? "disable" : "enable"]();
     }
   }, [drawMode, onDraftBoundsChange]);
 
@@ -196,7 +221,7 @@ export default function RadarMap({
       {drawMode && (
         <div className="draw-overlay">
           <span className="kicker amber">Draw area</span>
-          <strong>Click two corners on the map</strong>
+          <strong>Press and drag to draw a monitoring area</strong>
           <button onClick={onCancelDrawArea}>Cancel</button>
         </div>
       )}
