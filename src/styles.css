@@ -589,6 +589,42 @@ h1 {
   inset: 0;
 }
 
+.map .leaflet-tile-pane {
+  filter: saturate(0.72) brightness(0.82) contrast(1.08);
+}
+
+.map .leaflet-control-zoom {
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.map .leaflet-control-zoom a {
+  border-color: var(--line);
+  background: rgba(5, 7, 6, 0.9);
+  color: var(--letter);
+}
+
+.map .leaflet-control-zoom a:hover {
+  background: var(--amber);
+  color: #11100d;
+}
+
+.aircraft-map-label {
+  border: 1px solid rgba(136, 255, 210, 0.45);
+  border-radius: 2px;
+  background: rgba(5, 7, 6, 0.92);
+  box-shadow: none;
+  color: var(--letter);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.aircraft-map-label::before {
+  border-top-color: rgba(5, 7, 6, 0.92);
+}
+
 .map-loading {
   background:
     linear-gradient(90deg, rgba(240, 173, 61, 0.08) 0 1px, transparent 1px 48px),
