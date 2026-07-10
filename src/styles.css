@@ -616,6 +616,26 @@ h1 {
   transform-origin: 0 0;
 }
 
+.leaflet-tile-pane {
+  z-index: 200;
+}
+
+.leaflet-overlay-pane {
+  z-index: 400;
+}
+
+.leaflet-marker-pane {
+  z-index: 600;
+}
+
+.leaflet-tooltip-pane {
+  z-index: 650;
+}
+
+.leaflet-popup-pane {
+  z-index: 700;
+}
+
 .leaflet-tile {
   visibility: hidden;
   user-select: none;
