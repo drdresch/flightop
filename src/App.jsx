@@ -733,7 +733,7 @@ function WallAircraftDisplay({
           <section className="sign-identity">
             <span className="kicker">Operator</span>
             <strong>{operatorLabel(selectedAircraft)}</strong>
-            {selectedAircraft.operator && <small>{aircraftTypeLabel(selectedAircraft)}</small>}
+            <small>{aircraftTypeLabel(selectedAircraft)}</small>
           </section>
 
           <section className="sign-flight">

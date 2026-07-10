@@ -1457,3 +1457,202 @@ dd {
     display: none;
   }
 }
+
+/* Continuous LED panel treatment: no dashboard-cell grid inside the sign. */
+.wall-sign {
+  border-color: rgba(242, 234, 216, 0.22);
+  background: #050604;
+  box-shadow: inset 0 0 0 3px #11120f, inset 0 0 0 5px rgba(242, 234, 216, 0.07), var(--shadow);
+}
+
+.wall-sign::before {
+  opacity: 0.72;
+  background-image:
+    radial-gradient(circle, rgba(242, 234, 216, 0.22) 0 0.55px, transparent 0.8px),
+    linear-gradient(90deg, rgba(240, 173, 61, 0.05), transparent 35%, transparent 70%, rgba(240, 173, 61, 0.04));
+  background-size: 4px 4px, 100% 100%;
+}
+
+.sign-rail {
+  padding: 8px 18px;
+  border-bottom-color: rgba(242, 234, 216, 0.13);
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.sign-main {
+  grid-template-columns: minmax(0, 1.55fr) minmax(285px, 0.55fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.sign-identity,
+.sign-flight {
+  padding: clamp(18px, 2.2vw, 32px);
+}
+
+.sign-identity {
+  border-bottom: 0;
+}
+
+.sign-identity strong {
+  color: var(--letter);
+  font-size: clamp(20px, 2.05vw, 34px);
+}
+
+.sign-identity small {
+  color: var(--amber);
+  font-size: clamp(13px, 1.15vw, 17px);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sign-flight {
+  justify-content: flex-start;
+  padding-top: clamp(16px, 1.8vw, 26px);
+}
+
+.sign-flight strong {
+  color: var(--letter);
+  font-size: clamp(36px, 4.25vw, 68px);
+  line-height: 0.98;
+}
+
+.sign-location {
+  margin-top: 14px;
+  color: var(--letter);
+}
+
+.sign-readouts {
+  grid-template-columns: 1fr;
+  grid-auto-rows: min-content;
+  align-content: start;
+  padding: clamp(18px, 2.1vw, 30px) clamp(18px, 2.2vw, 32px);
+  border-left: 1px solid rgba(242, 234, 216, 0.16);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.sign-readouts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  min-height: 0;
+  padding: 8px 0;
+  border: 0;
+}
+
+.sign-readouts > div:first-child {
+  display: none;
+}
+
+.sign-readouts > div + div {
+  border-top: 1px solid rgba(242, 234, 216, 0.09);
+}
+
+.sign-readouts span,
+.sign-atc span {
+  color: var(--muted);
+}
+
+.sign-readouts strong {
+  color: var(--letter);
+  font-size: clamp(16px, 1.45vw, 23px);
+}
+
+.sign-atc {
+  display: block !important;
+  margin-top: 14px;
+  padding-top: 16px !important;
+  background: transparent;
+  border-top: 1px solid rgba(240, 173, 61, 0.38) !important;
+}
+
+.sign-atc span,
+.sign-atc strong {
+  color: var(--amber);
+}
+
+.sign-atc strong {
+  font-size: clamp(17px, 1.5vw, 24px);
+}
+
+.sign-atc > small,
+.sign-atc em {
+  color: var(--letter);
+}
+
+.sign-ticker {
+  padding: 8px 18px;
+  border-top-color: rgba(242, 234, 216, 0.13);
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.sign-identity strong,
+.sign-flight strong,
+.sign-readouts strong,
+.sign-location,
+.sign-ticker p {
+  --led-color: var(--letter);
+  text-shadow: none;
+  background-image: radial-gradient(circle, var(--led-color) 0 0.72px, transparent 0.96px);
+  background-position: 0 0;
+  background-size: 4px 4px;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sign-route {
+  --led-color: var(--amber);
+  text-shadow: none;
+  background-image: radial-gradient(circle, var(--led-color) 0 0.72px, transparent 0.96px);
+  background-position: 0 0;
+  background-size: 4px 4px;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.sign-identity small,
+.sign-rail,
+.sign-readouts span,
+.sign-atc > small,
+.sign-atc em,
+.sign-ticker small {
+  font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@media (max-height: 800px) and (min-width: 901px) {
+  .sign-main {
+    grid-template-columns: minmax(0, 1.5fr) minmax(245px, 0.6fr);
+  }
+
+  .sign-identity,
+  .sign-flight {
+    padding: 14px 18px;
+  }
+
+  .sign-readouts {
+    padding: 12px 18px;
+  }
+
+  .sign-readouts > div {
+    padding: 5px 0;
+  }
+
+  .sign-atc {
+    margin-top: 7px;
+    padding-top: 8px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .sign-main {
+    grid-template-columns: 1fr;
+  }
+
+  .sign-readouts {
+    border-left: 0;
+  }
+}
