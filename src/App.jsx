@@ -813,7 +813,17 @@ export default function App() {
       });
 
       const response = await fetch(`/api/aircraft?${params.toString()}`);
-      const data = await response.json();
+      const responseText = await response.text();
+      if (!responseText.trim()) {
+        throw new Error(`Aircraft service returned an empty response (${response.status}).`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error(`Aircraft service returned an invalid response (${response.status}).`);
+      }
 
       if (!data.ok) {
         setStatus(data.error || "Aircraft data failed.");
