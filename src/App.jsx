@@ -109,6 +109,27 @@ const DIRECTION_SHORT = [
   "NNW",
 ];
 
+const AIRLINE_BY_CALLSIGN_PREFIX = {
+  AAL: "American Airlines",
+  ASA: "Alaska Airlines",
+  DAL: "Delta Air Lines",
+  ENY: "Envoy Air",
+  FDX: "FedEx Express",
+  FFT: "Frontier Airlines",
+  GTI: "Atlas Air",
+  HAL: "Hawaiian Airlines",
+  JBU: "JetBlue Airways",
+  NKS: "Spirit Airlines",
+  PDT: "Piedmont Airlines",
+  QXE: "Horizon Air",
+  RPA: "Republic Airways",
+  SKW: "SkyWest Airlines",
+  SWA: "Southwest Airlines",
+  UAL: "United Airlines",
+  UPS: "UPS Airlines",
+  WJA: "WestJet",
+};
+
 function cleanText(value) {
   if (value == null) return "";
   return String(value).trim();
@@ -123,6 +144,19 @@ function titleCase(value) {
     .replace(/\b([a-z])/g, (match) => match.toUpperCase())
     .replace(/\bAtc\b/g, "ATC")
     .replace(/\bPdx\b/g, "PDX");
+}
+
+function cleanOperator(value) {
+  const text = cleanText(value);
+  if (!text || /^(cancelled|not assigned|cancelled\s*\/\s*not assigned|unknown|n\/?a)$/i.test(text)) {
+    return "";
+  }
+  return titleCase(text);
+}
+
+function operatorFromCallsign(value) {
+  const prefix = cleanText(value).toUpperCase().match(/^([A-Z]{3})\d/)?.[1];
+  return prefix ? AIRLINE_BY_CALLSIGN_PREFIX[prefix] || "" : "";
 }
 
 function firstFinite(values) {
@@ -377,7 +411,9 @@ function normalizeAircraft(plane, monitorArea = DEFAULT_AREA) {
     registration: cleanText(plane.registration || plane.r || plane.reg),
     typeCode: cleanText(plane.typeCode || plane.t),
     description: titleCase(plane.description || plane.desc),
-    operator: titleCase(plane.operator || plane.ownOp),
+    operator:
+      operatorFromCallsign(plane.flight || plane.callsign) ||
+      cleanOperator(plane.operator || plane.ownOp),
     category: cleanText(plane.category),
     squawk: cleanText(plane.squawk),
     emergency: cleanText(plane.emergency) && cleanText(plane.emergency) !== "none",
@@ -716,6 +752,10 @@ function WallAircraftDisplay({
     : followTarget
       ? `Waiting for the next ADS-B position for ${followTarget.label}.`
       : "No airborne ADS-B positions match this scan right now.";
+  const hasDistinctCallsign = Boolean(
+    selectedAircraft?.callsign &&
+      normalizeKey(selectedAircraft.callsign) !== normalizeKey(selectedAircraft.registration)
+  );
 
   return (
     <section className="wall-sign" aria-label="FlightOp wall display">
@@ -731,15 +771,14 @@ function WallAircraftDisplay({
           <section className="sign-identity">
             <span className="kicker">Aircraft</span>
             <strong>{aircraftTypeLabel(selectedAircraft)}</strong>
-            <small>
-              {selectedAircraft.operator
-                ? `Operator · ${selectedAircraft.operator}`
-                : "Operator unavailable"}
-            </small>
+            <p className="sign-operator">
+              <span>Operator / owner</span>
+              <b>{selectedAircraft.operator || "Private / unavailable"}</b>
+            </p>
           </section>
 
-          <section className="sign-flight">
-            <span className="kicker">Flight / registration</span>
+          <section className={`sign-flight ${hasDistinctCallsign ? "" : "registration-only"}`}>
+            <span className="kicker">{hasDistinctCallsign ? "Flight" : "Registration"}</span>
             <strong>{aircraftLabel(selectedAircraft)}</strong>
             <p className="sign-location">{locationText(selectedAircraft)}</p>
             <p className={hasSourceRoute ? "sign-route" : "sign-route muted"}>
