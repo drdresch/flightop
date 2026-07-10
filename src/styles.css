@@ -589,8 +589,21 @@ h1 {
   inset: 0;
 }
 
-.map .leaflet-tile-pane {
-  filter: saturate(0.72) brightness(0.82) contrast(1.08);
+.map .leaflet-tile {
+  width: 256px !important;
+  height: 256px !important;
+  max-width: none !important;
+  max-height: none !important;
+  image-rendering: auto;
+}
+
+.drawing-area .leaflet-interactive {
+  pointer-events: none;
+}
+
+.draw-tool-icon {
+  margin-right: 0.45em;
+  font-size: 1.15em;
 }
 
 .map .leaflet-control-zoom {
