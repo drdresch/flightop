@@ -2,6 +2,34 @@ import React, { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+const mapStyle = mapboxToken
+  ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${mapboxToken}`
+  : {
+      version: 8,
+      sources: {
+        osm: {
+          type: "raster",
+          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+          tileSize: 256,
+          attribution: "© OpenStreetMap contributors",
+        },
+      },
+      layers: [
+        {
+          id: "osm",
+          type: "raster",
+          source: "osm",
+          paint: {
+            "raster-saturation": -0.9,
+            "raster-brightness-min": 0.02,
+            "raster-brightness-max": 0.36,
+            "raster-contrast": 0.46,
+          },
+        },
+      ],
+    };
+
 function aircraftLabel(plane) {
   return plane.callsign || plane.registration || plane.hex || "UNKNOWN";
 }
@@ -130,30 +158,7 @@ export default function RadarMap({
       zoom: 7.6,
       pitch: 0,
       bearing: 0,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
-          },
-        },
-        layers: [
-          {
-            id: "osm",
-            type: "raster",
-            source: "osm",
-            paint: {
-              "raster-saturation": -0.9,
-              "raster-brightness-min": 0.02,
-              "raster-brightness-max": 0.36,
-              "raster-contrast": 0.46,
-            },
-          },
-        ],
-      },
+      style: mapStyle,
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
@@ -394,7 +399,7 @@ export default function RadarMap({
           <button onClick={onCancelDrawArea}>Cancel</button>
         </div>
       )}
-      <div className="credit">Data: adsb.fi open data · Map: OpenStreetMap</div>
+      <div className="credit">Data: adsb.fi open data · Map: {mapboxToken ? "Mapbox" : "OpenStreetMap"}</div>
     </section>
   );
 }

@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { formatRoute, formatRouteDetail, getRouteForAircraft } from "./lib/routeResolver.js";
 import "./styles.css";
+
+const RadarMap = lazy(() => import("./RadarMap.jsx"));
 
 const DEFAULT_CENTER = {
   label: "PDX",
@@ -1291,20 +1293,30 @@ export default function App() {
         </section>
       ) : (
         <section className="radar-layout" aria-label="Radar setup mode">
-          <section className="radar-setup-summary">
-            <span className="kicker amber">Active monitor area</span>
-            <strong>{monitorArea.label}</strong>
-            <p>{areaSummary(monitorArea)}</p>
-            <p>{status}</p>
-            <div className="button-row split area-actions">
-              <button onClick={useBrowserLocation}>Use my location</button>
-              <button onClick={resetToPdxArea}>Reset PDX</button>
-            </div>
-            <div className="radar-future-note">
-              <span className="kicker">Map drawing</span>
-              <p>Area drawing is being refined for a future setup update. Use your location or radius controls for now.</p>
-            </div>
-          </section>
+          <Suspense
+            fallback={
+              <section className="map-wrap map-loading">
+                <div className="radar-overlay">
+                  <span className="kicker">Radar / Setup</span>
+                  <strong>Loading map...</strong>
+                </div>
+              </section>
+            }
+          >
+            <RadarMap
+              aircraft={visibleAircraft}
+              center={monitorArea.center}
+              draftBounds={draftBounds}
+              drawMode={drawMode}
+              monitorArea={monitorArea}
+              onAreaDrawn={applyDrawnArea}
+              onCancelDrawArea={cancelDrawArea}
+              onDraftBoundsChange={setDraftBounds}
+              onSelectPlane={selectPlane}
+              selectedAircraft={selectedAircraft}
+              status={status}
+            />
+          </Suspense>
 
           <aside className="radar-panel">
             <section className="control-bank">
