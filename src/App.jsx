@@ -1336,6 +1336,7 @@ export default function App() {
               <div className="button-row split area-actions">
                 <button onClick={useBrowserLocation}>Use my location</button>
                 <button onClick={drawMode ? cancelDrawArea : startDrawArea}>
+                  <span className="draw-tool-icon" aria-hidden="true">✎</span>
                   {drawMode ? "Cancel draw" : "Draw area"}
                 </button>
                 <button onClick={resetToPdxArea}>Reset PDX</button>
