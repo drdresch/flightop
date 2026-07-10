@@ -705,6 +705,12 @@ h1 {
   pointer-events: none;
 }
 
+.drawing-area .map {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .draw-tool-icon {
   margin-right: 0.45em;
   font-size: 1.15em;
@@ -1588,6 +1594,20 @@ dd {
 }
 
 @media (max-width: 900px) {
+  .wall-mode.app {
+    height: auto;
+  }
+
+  .wall-mode .wall-layout,
+  .wall-mode .wall-sign {
+    height: auto;
+  }
+
+  .wall-mode .wall-layout,
+  .wall-mode .wall-sign {
+    grid-template-rows: auto;
+  }
+
   .wall-sign {
     height: auto;
   }
@@ -2138,20 +2158,6 @@ dd {
 }
 
 @media (max-width: 900px) {
-  .wall-mode.app {
-    height: auto;
-  }
-
-  .wall-mode .wall-layout,
-  .wall-mode .wall-sign {
-    height: auto;
-  }
-
-  .wall-mode .wall-layout,
-  .wall-mode .wall-sign {
-    grid-template-rows: auto;
-  }
-
   .wall-sign {
     height: auto;
   }
