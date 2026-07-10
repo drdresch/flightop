@@ -14,9 +14,24 @@ const DEFAULT_RADIUS_NM = 120;
 const REFRESH_MS = 15_000;
 const ROTATION_MS = 8_000;
 const LIVE_ATC_PDX_URL = "https://www.liveatc.net/search/?icao=kpdx";
+const LIVE_ATC_HOME_URL = "https://www.liveatc.net/";
 const HIDE_GROUND_STORAGE_KEY = "flightop.hideGroundAircraft";
+const MONITOR_AREA_STORAGE_KEY = "flightop.monitorArea";
+const FOLLOW_TARGET_STORAGE_KEY = "flightop.followTarget";
 
 const RADIUS_OPTIONS = [20, 40, 80, 120, 180, 250];
+
+const DEFAULT_AREA = {
+  id: "pdx",
+  type: "circle",
+  label: "PDX AREA",
+  shortLabel: "PDX",
+  center: DEFAULT_CENTER,
+  radiusNm: DEFAULT_RADIUS_NM,
+  fetchRadiusNm: DEFAULT_RADIUS_NM,
+  bounds: null,
+  source: "default",
+};
 
 const SCAN_MODES = [
   { value: "nearest", label: "Closest / overhead" },
@@ -118,6 +133,25 @@ function firstFinite(values) {
   return null;
 }
 
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function normalizeLon(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return DEFAULT_CENTER.lon;
+  return ((((number + 180) % 360) + 360) % 360) - 180;
+}
+
+function normalizeCenter(center = DEFAULT_CENTER) {
+  return {
+    lat: clampNumber(center.lat, -90, 90, DEFAULT_CENTER.lat),
+    lon: normalizeLon(center.lon),
+  };
+}
+
 function toRadians(degrees) {
   return (degrees * Math.PI) / 180;
 }
@@ -168,6 +202,132 @@ function directionShort(degrees) {
   return index == null ? "" : DIRECTION_SHORT[index];
 }
 
+function normalizeBounds(bounds) {
+  const north = clampNumber(bounds?.north, -90, 90, DEFAULT_CENTER.lat);
+  const south = clampNumber(bounds?.south, -90, 90, DEFAULT_CENTER.lat);
+  const east = normalizeLon(bounds?.east);
+  const west = normalizeLon(bounds?.west);
+
+  return {
+    north: Math.max(north, south),
+    south: Math.min(north, south),
+    east: Math.max(east, west),
+    west: Math.min(east, west),
+  };
+}
+
+function boundsFromCorners(first, second) {
+  return normalizeBounds({
+    north: Math.max(first.lat, second.lat),
+    south: Math.min(first.lat, second.lat),
+    east: Math.max(first.lon, second.lon),
+    west: Math.min(first.lon, second.lon),
+  });
+}
+
+function centerFromBounds(bounds) {
+  const normalized = normalizeBounds(bounds);
+  return {
+    lat: (normalized.north + normalized.south) / 2,
+    lon: (normalized.east + normalized.west) / 2,
+  };
+}
+
+function radiusForBounds(bounds) {
+  const normalized = normalizeBounds(bounds);
+  const center = centerFromBounds(normalized);
+  const corners = [
+    { lat: normalized.north, lon: normalized.west },
+    { lat: normalized.north, lon: normalized.east },
+    { lat: normalized.south, lon: normalized.west },
+    { lat: normalized.south, lon: normalized.east },
+  ];
+  const radius = Math.max(...corners.map((corner) => distanceNm(center, corner) || 0));
+  return clampNumber(Math.ceil(radius + 5), 1, 250, DEFAULT_RADIUS_NM);
+}
+
+function makeCircleArea(center, radiusNm = DEFAULT_RADIUS_NM, label = "CUSTOM AREA", source = "custom") {
+  const normalizedCenter = normalizeCenter(center);
+  const normalizedRadius = clampNumber(radiusNm, 1, 250, DEFAULT_RADIUS_NM);
+
+  return {
+    id: source === "default" ? "pdx" : `${source}-${Math.round(normalizedCenter.lat * 1000)}-${Math.round(normalizedCenter.lon * 1000)}`,
+    type: "circle",
+    label,
+    shortLabel: label.replace(/\s+AREA$/i, ""),
+    center: normalizedCenter,
+    radiusNm: normalizedRadius,
+    fetchRadiusNm: normalizedRadius,
+    bounds: null,
+    source,
+  };
+}
+
+function makeRectangleArea(bounds, label = "DRAWN AREA", source = "drawn") {
+  const normalizedBounds = normalizeBounds(bounds);
+  const center = centerFromBounds(normalizedBounds);
+  const fetchRadiusNm = radiusForBounds(normalizedBounds);
+
+  return {
+    id: `${source}-${Math.round(center.lat * 1000)}-${Math.round(center.lon * 1000)}`,
+    type: "rectangle",
+    label,
+    shortLabel: label.replace(/\s+AREA$/i, ""),
+    center,
+    radiusNm: fetchRadiusNm,
+    fetchRadiusNm,
+    bounds: normalizedBounds,
+    source,
+  };
+}
+
+function sanitizeMonitorArea(area) {
+  if (!area || typeof area !== "object") return DEFAULT_AREA;
+  if (area.type === "rectangle" && area.bounds) {
+    return makeRectangleArea(area.bounds, cleanText(area.label) || "DRAWN AREA", area.source || "drawn");
+  }
+
+  return makeCircleArea(
+    area.center || DEFAULT_CENTER,
+    area.radiusNm || area.fetchRadiusNm || DEFAULT_RADIUS_NM,
+    cleanText(area.label) || "CUSTOM AREA",
+    area.source || "custom"
+  );
+}
+
+function loadMonitorArea() {
+  try {
+    const saved = window.localStorage.getItem(MONITOR_AREA_STORAGE_KEY);
+    return saved ? sanitizeMonitorArea(JSON.parse(saved)) : DEFAULT_AREA;
+  } catch {
+    return DEFAULT_AREA;
+  }
+}
+
+function areaContainsAircraft(area, plane) {
+  if (!plane || !Number.isFinite(plane.lat) || !Number.isFinite(plane.lon)) return false;
+
+  if (area.type === "rectangle" && area.bounds) {
+    const bounds = normalizeBounds(area.bounds);
+    return (
+      plane.lat >= bounds.south &&
+      plane.lat <= bounds.north &&
+      plane.lon >= bounds.west &&
+      plane.lon <= bounds.east
+    );
+  }
+
+  const distance = distanceNm(area.center, { lat: plane.lat, lon: plane.lon });
+  return Number.isFinite(distance) && distance <= area.radiusNm;
+}
+
+function areaSummary(area) {
+  if (area.type === "rectangle") {
+    return `${area.label} · rectangle · ${Math.round(area.fetchRadiusNm)} NM fetch`;
+  }
+  return `${area.label} · ${Math.round(area.radiusNm)} NM radius`;
+}
+
 function normalizeAltitude(value) {
   if (value === "ground") return "ground";
   return firstFinite([value]);
@@ -196,11 +356,11 @@ function isGroundAircraft(plane) {
   return Boolean(plane?.isOnGround || plane?.altitude === "ground");
 }
 
-function normalizeAircraft(plane) {
+function normalizeAircraft(plane, monitorArea = DEFAULT_AREA) {
   const lat = firstFinite([plane.lat, plane.latitude]);
   const lon = firstFinite([plane.lon, plane.lng, plane.longitude]);
-  const fallbackDistance = distanceNm(DEFAULT_CENTER, { lat, lon });
-  const fallbackBearing = bearingDegrees(DEFAULT_CENTER, { lat, lon });
+  const fallbackDistance = distanceNm(monitorArea.center, { lat, lon });
+  const fallbackBearing = bearingDegrees(monitorArea.center, { lat, lon });
   const distance = firstFinite([plane.distanceNm, plane.dst, fallbackDistance]);
   const bearing = firstFinite([plane.dir, plane.bearing, fallbackBearing]);
   const isOnGround = sourceMarksGround(plane);
@@ -232,6 +392,7 @@ function normalizeAircraft(plane) {
     seen: firstFinite([plane.seenPos, plane.seen_pos, plane.seen]),
     distanceNm: distance,
     bearingFromCenter: bearing,
+    areaLabel: monitorArea.shortLabel || monitorArea.label || DEFAULT_CENTER.label,
     origin: route.origin,
     destination: route.destination,
     originName: route.originName,
@@ -305,11 +466,12 @@ function locationText(plane) {
   if (!plane) return "No aircraft selected";
   const distance = Number(plane.distanceNm);
   const bearing = Number(plane.bearingFromCenter);
+  const label = plane.areaLabel || DEFAULT_CENTER.label;
   if (!Number.isFinite(distance) || !Number.isFinite(bearing)) {
-    return `Position near ${DEFAULT_CENTER.label} unavailable`;
+    return `Position near ${label} unavailable`;
   }
-  if (distance < 1) return `Over ${DEFAULT_CENTER.label}`;
-  return `${Math.round(distance)} NM ${directionWord(bearing)} of ${DEFAULT_CENTER.label}`;
+  if (distance < 1) return `Over ${label}`;
+  return `${Math.round(distance)} NM ${directionWord(bearing)} of ${label}`;
 }
 
 function isAirlinerOrCargo(plane) {
@@ -384,14 +546,36 @@ function aircraftForScanMode(aircraft, mode) {
   return candidates.sort(compareDistance);
 }
 
-function atcCandidateFor(plane) {
-  if (!plane) {
+function isPdxArea(area) {
+  const distance = distanceNm(DEFAULT_CENTER, area.center);
+  return area.source === "default" || (Number.isFinite(distance) && distance <= 15);
+}
+
+function withLiveAtc(candidate, url = LIVE_ATC_PDX_URL) {
+  return { ...candidate, liveAtcUrl: url };
+}
+
+function atcCandidateFor(plane, monitorArea = DEFAULT_AREA) {
+  if (!isPdxArea(monitorArea)) {
     return {
+      primary: {
+        facility: "Area ATC candidate unavailable",
+        frequencies: ["local sector varies"],
+      },
+      confidence: "Low",
+      reason: "This watch area is outside the PDX preset. ADS-B does not include active ATC frequency data, and FlightOp only has PDX-area candidate sectors right now.",
+      candidates: [],
+      liveAtcUrl: LIVE_ATC_HOME_URL,
+    };
+  }
+
+  if (!plane) {
+    return withLiveAtc({
       primary: ATC_CANDIDATES.approach,
       confidence: "Low",
       reason: "No aircraft selected yet.",
       candidates: Object.values(ATC_CANDIDATES),
-    };
+    });
   }
 
   const altitude = numericAltitude(plane);
@@ -403,38 +587,38 @@ function atcCandidateFor(plane) {
   const highAltitude = altitude != null && altitude >= 18000;
 
   if (closeToPdx && (altitude == null || altitude < 3500)) {
-    return {
+    return withLiveAtc({
       primary: ATC_CANDIDATES.tower,
       confidence: "Medium",
       reason: "Low and very near PDX, so tower is a plausible candidate. ADS-B cannot confirm the assigned frequency.",
       candidates: [ATC_CANDIDATES.tower, ATC_CANDIDATES.approach, ATC_CANDIDATES.seattle],
-    };
+    });
   }
 
   if (terminalArea && !highAltitude) {
-    return {
+    return withLiveAtc({
       primary: ATC_CANDIDATES.approach,
       confidence: "Medium",
       reason: "Inside the PDX terminal area and below cruise altitude, so Portland Approach / Departure is the strongest candidate.",
       candidates: [ATC_CANDIDATES.approach, ATC_CANDIDATES.tower, ATC_CANDIDATES.seattle],
-    };
+    });
   }
 
   if (southbound && highAltitude && Number.isFinite(distance) && distance > 80) {
-    return {
+    return withLiveAtc({
       primary: ATC_CANDIDATES.oakland,
       confidence: "Low",
       reason: "High-altitude southbound traffic may later hand off toward Oakland Center. Treat this as a planning hint only.",
       candidates: [ATC_CANDIDATES.seattle, ATC_CANDIDATES.oakland, ATC_CANDIDATES.approach],
-    };
+    });
   }
 
-  return {
+  return withLiveAtc({
     primary: ATC_CANDIDATES.seattle,
     confidence: "Low",
     reason: "Outside the close PDX terminal picture or at cruise altitude, so a Seattle Center PDX-area sector is a reasonable candidate.",
     candidates: [ATC_CANDIDATES.seattle, ATC_CANDIDATES.approach, ATC_CANDIDATES.oakland],
-  };
+  });
 }
 
 function findTrackedAircraft(tracker, aircraft) {
@@ -449,6 +633,65 @@ function findTrackedAircraft(tracker, aircraft) {
       return callsigns.includes(callsign) || registrations.includes(registration);
     }) || null
   );
+}
+
+function normalizeKey(value) {
+  return cleanText(value).toUpperCase();
+}
+
+function followTargetFromAircraft(plane) {
+  if (!plane) return null;
+
+  return {
+    id: normalizeKey(plane.hex || plane.callsign || plane.registration || plane.id),
+    label: aircraftLabel(plane),
+    hex: normalizeKey(plane.hex),
+    callsign: normalizeKey(plane.callsign),
+    registration: normalizeKey(plane.registration),
+    lastPosition: Number.isFinite(plane.lat) && Number.isFinite(plane.lon)
+      ? { lat: plane.lat, lon: plane.lon }
+      : null,
+    radiusNm: 120,
+  };
+}
+
+function loadFollowTarget() {
+  try {
+    const saved = window.localStorage.getItem(FOLLOW_TARGET_STORAGE_KEY);
+    if (!saved) return null;
+    const target = JSON.parse(saved);
+    if (!target?.id && !target?.hex && !target?.callsign && !target?.registration) return null;
+    return {
+      id: normalizeKey(target.id || target.hex || target.callsign || target.registration),
+      label: cleanText(target.label) || normalizeKey(target.id),
+      hex: normalizeKey(target.hex),
+      callsign: normalizeKey(target.callsign),
+      registration: normalizeKey(target.registration),
+      lastPosition: target.lastPosition || null,
+      radiusNm: clampNumber(target.radiusNm, 20, 250, 120),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function aircraftMatchesFollowTarget(plane, target) {
+  if (!plane || !target) return false;
+  const hex = normalizeKey(plane.hex);
+  const callsign = normalizeKey(plane.callsign);
+  const registration = normalizeKey(plane.registration);
+
+  return Boolean(
+    (target.hex && hex && target.hex === hex) ||
+      (target.callsign && callsign && target.callsign === callsign) ||
+      (target.registration && registration && target.registration === registration) ||
+      (target.id && [hex, callsign, registration].includes(target.id))
+  );
+}
+
+function findFollowedAircraft(aircraft, target) {
+  if (!target) return null;
+  return aircraft.find((plane) => aircraftMatchesFollowTarget(plane, target)) || null;
 }
 
 function SplitFlapTile({ label, value, detail, size = "", tone = "" }) {
@@ -476,23 +719,30 @@ function SplitFlapBoard({ children }) {
 function WallAircraftDisplay({
   activeScanMode,
   displayedAircraftCount,
+  followTarget,
   hiddenGroundCount,
   lastUpdated,
+  monitorArea,
   selectedAircraft,
   selectedAtc,
   status,
 }) {
-  const countText =
-    hiddenGroundCount > 0
+  const countText = followTarget
+    ? "1 tracked aircraft"
+    : hiddenGroundCount > 0
       ? `${displayedAircraftCount.toLocaleString()} airborne / ${hiddenGroundCount.toLocaleString()} ground hidden`
       : `${displayedAircraftCount.toLocaleString()} aircraft`;
 
   return (
     <SplitFlapBoard>
       <div className="split-topline" aria-label="Wall status">
-        <SplitFlapTile label="FLIGHTOP" value={`${DEFAULT_CENTER.label} AREA SCAN`} tone="brand" />
-        <SplitFlapTile label="SCAN MODE" value={activeScanMode.label} />
-        <SplitFlapTile label="AIRCRAFT COUNT" value={countText} tone="amber-tile" />
+        <SplitFlapTile
+          label="FLIGHTOP"
+          value={followTarget ? `FOLLOW ${followTarget.label}` : `${monitorArea.label} SCAN`}
+          tone="brand"
+        />
+        <SplitFlapTile label={followTarget ? "MODE" : "SCAN MODE"} value={followTarget ? "Follow Mode" : activeScanMode.label} />
+        <SplitFlapTile label={followTarget ? "TRACK" : "AIRCRAFT COUNT"} value={countText} tone="amber-tile" />
         <SplitFlapTile
           label="SYNC"
           value={lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "Syncing"}
@@ -558,22 +808,28 @@ function WallAircraftDisplay({
               <span>Confidence</span>
               <strong>{selectedAtc.confidence}</strong>
             </div>
-            <div className="candidate-list" aria-label="ATC candidate frequencies">
-              {selectedAtc.candidates.map((candidate) => (
-                <span key={candidate.facility}>
-                  {candidate.facility}: {candidate.frequencies.join(", ")}
-                </span>
-              ))}
-            </div>
-            <a href={LIVE_ATC_PDX_URL} target="_blank" rel="noreferrer">
-              Open LiveATC PDX feeds
+            {selectedAtc.candidates.length > 0 && (
+              <div className="candidate-list" aria-label="ATC candidate frequencies">
+                {selectedAtc.candidates.map((candidate) => (
+                  <span key={candidate.facility}>
+                    {candidate.facility}: {candidate.frequencies.join(", ")}
+                  </span>
+                ))}
+              </div>
+            )}
+            <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">
+              Open LiveATC
             </a>
           </section>
         </>
       ) : (
         <div className="empty-board">
-          <span className="kicker amber">Awaiting aircraft</span>
-          <p>No airborne ADS-B positions match this scan right now.</p>
+          <span className="kicker amber">{followTarget ? "Following aircraft" : "Awaiting aircraft"}</span>
+          <p>
+            {followTarget
+              ? `Waiting for the next ADS-B position for ${followTarget.label}.`
+              : "No airborne ADS-B positions match this scan right now."}
+          </p>
         </div>
       )}
     </SplitFlapBoard>
@@ -583,13 +839,17 @@ function WallAircraftDisplay({
 export default function App() {
   const [viewMode, setViewMode] = useState("wall");
   const [presentationMode, setPresentationMode] = useState(false);
+  const [monitorArea, setMonitorArea] = useState(loadMonitorArea);
+  const [drawMode, setDrawMode] = useState(false);
+  const [draftBounds, setDraftBounds] = useState(null);
+  const [areaNotice, setAreaNotice] = useState("");
+  const [followTarget, setFollowTarget] = useState(loadFollowTarget);
   const [aircraft, setAircraft] = useState([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [status, setStatus] = useState("Loading aircraft...");
   const [query, setQuery] = useState("");
   const [scanMode, setScanMode] = useState("nearest");
-  const [radiusNm, setRadiusNm] = useState(DEFAULT_RADIUS_NM);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [rotationPaused, setRotationPaused] = useState(false);
   const [hideGroundAircraft, setHideGroundAircraft] = useState(() => {
@@ -603,10 +863,11 @@ export default function App() {
 
   const fetchAircraft = useCallback(async () => {
     try {
+      const fetchRadiusNm = monitorArea.fetchRadiusNm || monitorArea.radiusNm || DEFAULT_RADIUS_NM;
       const params = new URLSearchParams({
-        lat: DEFAULT_CENTER.lat,
-        lon: DEFAULT_CENTER.lon,
-        dist: radiusNm,
+        lat: monitorArea.center.lat,
+        lon: monitorArea.center.lon,
+        dist: fetchRadiusNm,
       });
 
       const response = await fetch(`/api/aircraft?${params.toString()}`);
@@ -620,30 +881,43 @@ export default function App() {
       }
 
       const normalized = (data.aircraft || [])
-        .map(normalizeAircraft)
+        .map((plane) => normalizeAircraft(plane, monitorArea))
         .filter((plane) => plane.id && Number.isFinite(plane.lat) && Number.isFinite(plane.lon));
 
       setAircraft(normalized);
       setLastUpdated(data.fetchedAt || new Date().toISOString());
-      setStatus(`${normalized.length} aircraft within ${data.radiusNm || radiusNm} NM`);
+      setStatus(`${normalized.length} aircraft loaded around ${monitorArea.label}`);
     } catch (error) {
       setStatus(`Could not load aircraft: ${error.message}`);
     }
-  }, [radiusNm]);
+  }, [monitorArea]);
+
+  const areaAircraft = useMemo(() => {
+    return aircraft.filter((plane) => areaContainsAircraft(monitorArea, plane));
+  }, [aircraft, monitorArea]);
 
   const visibleAircraft = useMemo(() => {
-    if (!hideGroundAircraft) return aircraft;
-    return aircraft.filter((plane) => !isGroundAircraft(plane));
-  }, [aircraft, hideGroundAircraft]);
+    if (!hideGroundAircraft) return areaAircraft;
+    return areaAircraft.filter((plane) => !isGroundAircraft(plane));
+  }, [areaAircraft, hideGroundAircraft]);
 
-  const hiddenGroundCount = aircraft.length - visibleAircraft.length;
+  const hiddenGroundCount = areaAircraft.length - visibleAircraft.length;
 
   const wallAircraft = useMemo(() => {
     return aircraftForScanMode(visibleAircraft, scanMode);
   }, [visibleAircraft, scanMode]);
 
-  const selectedAircraft = wallAircraft[activeIndex] || wallAircraft[0] || null;
-  const selectedAtc = useMemo(() => atcCandidateFor(selectedAircraft), [selectedAircraft]);
+  const followedAircraft = useMemo(() => {
+    return findFollowedAircraft(aircraft, followTarget);
+  }, [aircraft, followTarget]);
+
+  const selectedAircraft = followTarget
+    ? followedAircraft
+    : wallAircraft[activeIndex] || wallAircraft[0] || null;
+  const selectedAtc = useMemo(
+    () => atcCandidateFor(selectedAircraft, monitorArea),
+    [selectedAircraft, monitorArea]
+  );
   const activeScanMode = SCAN_MODES.find((mode) => mode.value === scanMode) || SCAN_MODES[0];
 
   const radarAircraft = useMemo(() => {
@@ -675,7 +949,7 @@ export default function App() {
 
   const trackedFlights = useMemo(() => {
     return TRIP_TRACKERS.map((tracker) => {
-      const trackedAircraft = findTrackedAircraft(tracker, aircraft);
+      const trackedAircraft = findTrackedAircraft(tracker, areaAircraft);
       const hiddenOnGround =
         hideGroundAircraft && trackedAircraft && isGroundAircraft(trackedAircraft);
 
@@ -685,10 +959,11 @@ export default function App() {
         hiddenOnGround,
       };
     });
-  }, [aircraft, hideGroundAircraft]);
+  }, [areaAircraft, hideGroundAircraft]);
 
   const stepAircraft = useCallback(
     (direction) => {
+      setFollowTarget(null);
       setRotationPaused(true);
       setActiveIndex((index) => {
         if (!wallAircraft.length) return 0;
@@ -699,9 +974,96 @@ export default function App() {
   );
 
   function selectPlane(plane) {
+    setFollowTarget(null);
     const index = wallAircraft.findIndex((candidate) => candidate.id === plane.id);
     setActiveIndex(index >= 0 ? index : 0);
     setRotationPaused(true);
+  }
+
+  function startFollowAircraft(plane) {
+    const target = followTargetFromAircraft(plane);
+    if (!target) return;
+
+    setFollowTarget(target);
+    setRotationPaused(true);
+    setDrawMode(false);
+    setDraftBounds(null);
+    setViewMode("wall");
+    setAreaNotice(`Following ${target.label}.`);
+    if (target.lastPosition) {
+      setMonitorArea(makeCircleArea(target.lastPosition, target.radiusNm, `FOLLOW ${target.label}`, "follow"));
+    }
+  }
+
+  function stopFollowAircraft() {
+    setFollowTarget(null);
+    setAreaNotice("");
+  }
+
+  function updateCircleRadius(radius) {
+    const label = monitorArea.source === "default" ? "PDX AREA" : monitorArea.label;
+    setMonitorArea(makeCircleArea(monitorArea.center, radius, label, monitorArea.source || "custom"));
+    setAreaNotice("");
+  }
+
+  function resetToPdxArea() {
+    setFollowTarget(null);
+    setMonitorArea(DEFAULT_AREA);
+    setDraftBounds(null);
+    setDrawMode(false);
+    setAreaNotice("Monitoring PDX AREA.");
+  }
+
+  function startDrawArea() {
+    setFollowTarget(null);
+    setViewMode("radar");
+    setPresentationMode(false);
+    setDrawMode(true);
+    setDraftBounds(null);
+    setAreaNotice("Draw Area mode active: click two map corners.");
+  }
+
+  function cancelDrawArea() {
+    setDrawMode(false);
+    setDraftBounds(null);
+    setAreaNotice("");
+  }
+
+  function applyDrawnArea(bounds) {
+    const area = makeRectangleArea(bounds);
+    setFollowTarget(null);
+    setMonitorArea(area);
+    setDraftBounds(null);
+    setDrawMode(false);
+    setAreaNotice(`Monitoring ${area.label}.`);
+  }
+
+  function useBrowserLocation() {
+    if (!navigator.geolocation) {
+      setAreaNotice("Browser location is unavailable here.");
+      return;
+    }
+
+    setAreaNotice("Waiting for browser location permission...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const center = {
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+        };
+        const nextRadius = monitorArea.type === "circle" ? monitorArea.radiusNm : 20;
+        const area = makeCircleArea(center, nextRadius, "MY LOCATION", "location");
+        setFollowTarget(null);
+        setMonitorArea(area);
+        setDraftBounds(null);
+        setDrawMode(false);
+        setAreaNotice("Monitoring MY LOCATION.");
+      },
+      (error) => {
+        setAreaNotice(error.message || "Could not read browser location.");
+      },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+    );
   }
 
   useEffect(() => {
@@ -716,7 +1078,7 @@ export default function App() {
 
   useEffect(() => {
     setActiveIndex(0);
-  }, [scanMode, hideGroundAircraft]);
+  }, [scanMode, hideGroundAircraft, monitorArea]);
 
   useEffect(() => {
     try {
@@ -725,6 +1087,47 @@ export default function App() {
       // localStorage can be unavailable in private or restricted browser contexts.
     }
   }, [hideGroundAircraft]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MONITOR_AREA_STORAGE_KEY, JSON.stringify(monitorArea));
+    } catch {
+      // localStorage can be unavailable in private or restricted browser contexts.
+    }
+  }, [monitorArea]);
+
+  useEffect(() => {
+    try {
+      if (followTarget) {
+        window.localStorage.setItem(FOLLOW_TARGET_STORAGE_KEY, JSON.stringify(followTarget));
+      } else {
+        window.localStorage.removeItem(FOLLOW_TARGET_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage can be unavailable in private or restricted browser contexts.
+    }
+  }, [followTarget]);
+
+  useEffect(() => {
+    if (!followTarget || !followedAircraft) return;
+    if (!Number.isFinite(followedAircraft.lat) || !Number.isFinite(followedAircraft.lon)) return;
+
+    const center = { lat: followedAircraft.lat, lon: followedAircraft.lon };
+    const distanceFromCenter = distanceNm(monitorArea.center, center);
+    const nextTarget = {
+      ...followTarget,
+      label: aircraftLabel(followedAircraft),
+      lastPosition: center,
+    };
+
+    if (JSON.stringify(nextTarget) !== JSON.stringify(followTarget)) {
+      setFollowTarget(nextTarget);
+    }
+
+    if (monitorArea.source !== "follow" || !Number.isFinite(distanceFromCenter) || distanceFromCenter > 8) {
+      setMonitorArea(makeCircleArea(center, followTarget.radiusNm || 120, `FOLLOW ${aircraftLabel(followedAircraft)}`, "follow"));
+    }
+  }, [followTarget, followedAircraft, monitorArea.center, monitorArea.source]);
 
   useEffect(() => {
     if (!presentationMode) return undefined;
@@ -743,18 +1146,18 @@ export default function App() {
   }, [activeIndex, wallAircraft.length]);
 
   useEffect(() => {
-    if (rotationPaused || wallAircraft.length <= 1) return;
+    if (followTarget || rotationPaused || wallAircraft.length <= 1) return;
     const timer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % wallAircraft.length);
     }, ROTATION_MS);
     return () => window.clearInterval(timer);
-  }, [rotationPaused, wallAircraft.length]);
+  }, [followTarget, rotationPaused, wallAircraft.length]);
 
   return (
     <main className={`app ${viewMode}-mode ${presentationMode ? "presentation-mode" : ""}`}>
       <header className="app-header">
         <div>
-          <div className="eyebrow">FLIGHTOP / {DEFAULT_CENTER.label} AREA</div>
+          <div className="eyebrow">FLIGHTOP / {monitorArea.label}</div>
           <h1>Wall Display</h1>
         </div>
         <nav className="mode-switch" aria-label="Display mode">
@@ -795,8 +1198,10 @@ export default function App() {
           <WallAircraftDisplay
             activeScanMode={activeScanMode}
             displayedAircraftCount={wallAircraft.length}
+            followTarget={followTarget}
             hiddenGroundCount={hideGroundAircraft ? hiddenGroundCount : 0}
             lastUpdated={lastUpdated}
+            monitorArea={monitorArea}
             selectedAircraft={selectedAircraft}
             selectedAtc={selectedAtc}
             status={status}
@@ -841,7 +1246,10 @@ export default function App() {
                 </label>
                 <label>
                   <span className="kicker">Area radius</span>
-                  <select value={radiusNm} onChange={(event) => setRadiusNm(Number(event.target.value))}>
+                  <select
+                    value={monitorArea.radiusNm}
+                    onChange={(event) => updateCircleRadius(Number(event.target.value))}
+                  >
                     {RADIUS_OPTIONS.map((radius) => (
                       <option value={radius} key={radius}>
                         {radius} NM
@@ -861,6 +1269,36 @@ export default function App() {
                 </div>
                 <p>adsb.fi open ADS-B data via /api/aircraft</p>
               </section>
+
+              <section className="control-bank area-controls">
+                <span className="kicker">Monitor area</span>
+                <div className="button-row split">
+                  <button
+                    onClick={() => {
+                      setViewMode("radar");
+                      setPresentationMode(false);
+                    }}
+                  >
+                    Setup map
+                  </button>
+                  <button onClick={useBrowserLocation}>Use my location</button>
+                </div>
+                <p>{areaSummary(monitorArea)}</p>
+              </section>
+
+              {followTarget && (
+                <section className="control-bank follow-controls">
+                  <span className="kicker amber">Follow Mode</span>
+                  <strong>{followTarget.label}</strong>
+                  <div className="button-row split">
+                    <button onClick={stopFollowAircraft}>Stop follow</button>
+                    <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">
+                      Listen
+                    </a>
+                  </div>
+                  <p>ADS-B does not include the exact frequency. FlightOp shows likely ATC candidates only.</p>
+                </section>
+              )}
 
               <section className="control-bank upcoming">
                 <span className="kicker">Up next / {activeScanMode.label}</span>
@@ -917,7 +1355,13 @@ export default function App() {
           >
             <RadarMap
               aircraft={visibleAircraft}
-              center={DEFAULT_CENTER}
+              center={monitorArea.center}
+              draftBounds={draftBounds}
+              drawMode={drawMode}
+              monitorArea={monitorArea}
+              onAreaDrawn={applyDrawnArea}
+              onCancelDrawArea={cancelDrawArea}
+              onDraftBoundsChange={setDraftBounds}
               onSelectPlane={selectPlane}
               selectedAircraft={selectedAircraft}
               status={status}
@@ -925,6 +1369,19 @@ export default function App() {
           </Suspense>
 
           <aside className="radar-panel">
+            <section className="control-bank">
+              <span className="kicker amber">Monitor area</span>
+              <p>{areaSummary(monitorArea)}</p>
+              {areaNotice && <p className="area-notice">{areaNotice}</p>}
+              <div className="button-row split area-actions">
+                <button onClick={useBrowserLocation}>Use my location</button>
+                <button onClick={drawMode ? cancelDrawArea : startDrawArea}>
+                  {drawMode ? "Cancel draw" : "Draw area"}
+                </button>
+                <button onClick={resetToPdxArea}>Reset PDX</button>
+              </div>
+            </section>
+
             <section className="control-bank">
               <label>
                 <span className="kicker">Search</span>
@@ -954,7 +1411,10 @@ export default function App() {
               </label>
               <label>
                 <span className="kicker">Radius</span>
-                <select value={radiusNm} onChange={(event) => setRadiusNm(Number(event.target.value))}>
+                <select
+                  value={monitorArea.radiusNm}
+                  onChange={(event) => updateCircleRadius(Number(event.target.value))}
+                >
                   {RADIUS_OPTIONS.map((radius) => (
                     <option value={radius} key={radius}>
                       {radius} NM
@@ -989,6 +1449,25 @@ export default function App() {
                       <dd>{ageText(selectedAircraft.seen)}</dd>
                     </div>
                   </dl>
+                  <div className="button-row split selected-actions">
+                    <button
+                      onClick={() =>
+                        followTarget && aircraftMatchesFollowTarget(selectedAircraft, followTarget)
+                          ? stopFollowAircraft()
+                          : startFollowAircraft(selectedAircraft)
+                      }
+                    >
+                      {followTarget && aircraftMatchesFollowTarget(selectedAircraft, followTarget)
+                        ? "Stop follow"
+                        : "Follow aircraft"}
+                    </button>
+                    <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">
+                      Listen on LiveATC
+                    </a>
+                  </div>
+                  <p className="truth-note">
+                    ADS-B does not include the exact frequency. Follow Mode shows likely ATC candidates and listening options only.
+                  </p>
                   {selectedAircraft.hex && (
                     <a
                       href={`https://globe.adsb.fi/?icao=${selectedAircraft.hex}`}

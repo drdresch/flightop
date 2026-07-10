@@ -153,6 +153,7 @@ h1 {
 
 .mode-switch button,
 .button-row button,
+.button-row a,
 .control-bank button {
   min-height: 36px;
   padding: 8px 11px;
@@ -160,6 +161,17 @@ h1 {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.button-row a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--letter);
+  background: rgba(255, 255, 255, 0.055);
+  text-decoration: none;
 }
 
 .mode-switch button.active,
@@ -414,7 +426,7 @@ h1 {
   overflow: auto;
   padding: 9px;
   display: grid;
-  grid-template-columns: 1.05fr 1.2fr 0.78fr 1.25fr 1.15fr;
+  grid-template-columns: 1fr 1.15fr 0.72fr 1.08fr 1fr 1.1fr;
   gap: 8px;
 }
 
@@ -504,6 +516,23 @@ h1 {
   text-transform: uppercase;
 }
 
+.follow-controls strong {
+  display: block;
+  margin: 8px 0;
+  color: var(--letter);
+  font-size: 18px;
+  text-transform: uppercase;
+}
+
+.area-notice,
+.truth-note {
+  color: var(--amber);
+}
+
+.selected-actions {
+  margin-top: 10px;
+}
+
 .presentation-mode {
   height: 100svh;
   min-height: 100svh;
@@ -579,6 +608,32 @@ h1 {
   padding: 8px 10px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.draw-overlay {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(240, 173, 61, 0.52);
+  background: rgba(5, 7, 6, 0.86);
+  padding: 12px 14px;
+  backdrop-filter: blur(16px);
+}
+
+.draw-overlay strong {
+  color: var(--letter);
+  text-transform: uppercase;
+}
+
+.draw-overlay button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .radar-panel {
@@ -742,7 +797,7 @@ dd {
   .wall-controls {
     padding: 7px;
     max-height: 104px;
-    grid-template-columns: 1fr minmax(330px, 1.45fr) 0.75fr;
+    grid-template-columns: 0.8fr minmax(318px, 1.35fr) 0.62fr 0.78fr 0.9fr;
     overflow: hidden;
   }
 

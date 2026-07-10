@@ -27,13 +27,98 @@ function makeAircraftGeoJson(aircraft) {
   };
 }
 
-export default function RadarMap({ aircraft, center, onSelectPlane, selectedAircraft, status }) {
+function boundsToPolygon(bounds) {
+  if (!bounds) return null;
+  return [
+    [
+      [bounds.west, bounds.north],
+      [bounds.east, bounds.north],
+      [bounds.east, bounds.south],
+      [bounds.west, bounds.south],
+      [bounds.west, bounds.north],
+    ],
+  ];
+}
+
+function circleToPolygon(center, radiusNm) {
+  const points = [];
+  const radiusDegrees = radiusNm / 60;
+  const latRadians = (center.lat * Math.PI) / 180;
+  const lonScale = Math.max(0.2, Math.cos(latRadians));
+
+  for (let index = 0; index <= 64; index += 1) {
+    const angle = (index / 64) * Math.PI * 2;
+    points.push([
+      center.lon + (Math.cos(angle) * radiusDegrees) / lonScale,
+      center.lat + Math.sin(angle) * radiusDegrees,
+    ]);
+  }
+
+  return [points];
+}
+
+function areaGeoJson(monitorArea, draftBounds) {
+  const bounds = draftBounds || monitorArea.bounds;
+  const coordinates = bounds
+    ? boundsToPolygon(bounds)
+    : circleToPolygon(monitorArea.center, monitorArea.radiusNm || monitorArea.fetchRadiusNm || 20);
+
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates,
+        },
+        properties: {
+          label: draftBounds ? "Drawing area" : monitorArea.label,
+        },
+      },
+    ],
+  };
+}
+
+function boundsFromClicks(first, second) {
+  return {
+    north: Math.max(first.lat, second.lat),
+    south: Math.min(first.lat, second.lat),
+    east: Math.max(first.lng, second.lng),
+    west: Math.min(first.lng, second.lng),
+  };
+}
+
+export default function RadarMap({
+  aircraft,
+  center,
+  draftBounds,
+  drawMode,
+  monitorArea,
+  onAreaDrawn,
+  onCancelDrawArea,
+  onDraftBoundsChange,
+  onSelectPlane,
+  selectedAircraft,
+  status,
+}) {
   const mapNode = useRef(null);
   const mapRef = useRef(null);
   const aircraftRef = useRef(aircraft);
+  const areaRef = useRef(monitorArea);
+  const draftBoundsRef = useRef(draftBounds);
+  const drawModeRef = useRef(drawMode);
+  const drawStartRef = useRef(null);
+  const onAreaDrawnRef = useRef(onAreaDrawn);
+  const onDraftBoundsChangeRef = useRef(onDraftBoundsChange);
   const onSelectPlaneRef = useRef(onSelectPlane);
 
   aircraftRef.current = aircraft;
+  areaRef.current = monitorArea;
+  draftBoundsRef.current = draftBounds;
+  drawModeRef.current = drawMode;
+  onAreaDrawnRef.current = onAreaDrawn;
+  onDraftBoundsChangeRef.current = onDraftBoundsChange;
   onSelectPlaneRef.current = onSelectPlane;
 
   useEffect(() => {
@@ -75,6 +160,32 @@ export default function RadarMap({ aircraft, center, onSelectPlane, selectedAirc
     mapRef.current = map;
 
     map.on("load", () => {
+      map.addSource("monitor-area", {
+        type: "geojson",
+        data: areaGeoJson(areaRef.current, draftBoundsRef.current),
+      });
+
+      map.addLayer({
+        id: "monitor-area-fill",
+        type: "fill",
+        source: "monitor-area",
+        paint: {
+          "fill-color": "#f0ad3d",
+          "fill-opacity": 0.15,
+        },
+      });
+
+      map.addLayer({
+        id: "monitor-area-line",
+        type: "line",
+        source: "monitor-area",
+        paint: {
+          "line-color": "#f0ad3d",
+          "line-width": 2,
+          "line-dasharray": [2, 1.3],
+        },
+      });
+
       map.addSource("aircraft", {
         type: "geojson",
         data: makeAircraftGeoJson(aircraftRef.current),
@@ -156,6 +267,7 @@ export default function RadarMap({ aircraft, center, onSelectPlane, selectedAirc
       });
 
       map.on("click", "aircraft-plane", (event) => {
+        if (drawModeRef.current) return;
         const feature = event.features?.[0];
         const id = feature?.properties?.id;
         const plane = aircraftRef.current.find((candidate) => candidate.id === id);
@@ -163,11 +275,31 @@ export default function RadarMap({ aircraft, center, onSelectPlane, selectedAirc
       });
 
       map.on("mouseenter", "aircraft-plane", () => {
+        if (drawModeRef.current) return;
         map.getCanvas().style.cursor = "pointer";
       });
 
       map.on("mouseleave", "aircraft-plane", () => {
-        map.getCanvas().style.cursor = "";
+        map.getCanvas().style.cursor = drawModeRef.current ? "crosshair" : "";
+      });
+
+      map.on("click", (event) => {
+        if (!drawModeRef.current) return;
+
+        if (!drawStartRef.current) {
+          drawStartRef.current = event.lngLat;
+          onDraftBoundsChangeRef.current?.(boundsFromClicks(event.lngLat, event.lngLat));
+          return;
+        }
+
+        const bounds = boundsFromClicks(drawStartRef.current, event.lngLat);
+        drawStartRef.current = null;
+        onAreaDrawnRef.current?.(bounds);
+      });
+
+      map.on("mousemove", (event) => {
+        if (!drawModeRef.current || !drawStartRef.current) return;
+        onDraftBoundsChangeRef.current?.(boundsFromClicks(drawStartRef.current, event.lngLat));
       });
     });
 
@@ -175,7 +307,7 @@ export default function RadarMap({ aircraft, center, onSelectPlane, selectedAirc
       map.remove();
       mapRef.current = null;
     };
-  }, [center.lat, center.lon]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -191,6 +323,47 @@ export default function RadarMap({ aircraft, center, onSelectPlane, selectedAirc
   }, [aircraft]);
 
   useEffect(() => {
+    drawStartRef.current = null;
+    if (!drawMode) onDraftBoundsChange?.(null);
+  }, [drawMode, onDraftBoundsChange]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+
+    const update = () => {
+      const source = map.getSource("monitor-area");
+      if (source) source.setData(areaGeoJson(monitorArea, draftBounds));
+      map.getCanvas().style.cursor = drawMode ? "crosshair" : "";
+    };
+
+    if (map.loaded()) update();
+    else map.once("load", update);
+  }, [monitorArea, draftBounds, drawMode]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (monitorArea.type === "rectangle" && monitorArea.bounds) {
+      map.fitBounds(
+        [
+          [monitorArea.bounds.west, monitorArea.bounds.south],
+          [monitorArea.bounds.east, monitorArea.bounds.north],
+        ],
+        { padding: 80, duration: 700, maxZoom: 10 }
+      );
+      return;
+    }
+
+    map.easeTo({
+      center: [center.lon, center.lat],
+      zoom: monitorArea.radiusNm <= 20 ? 9.2 : 7.6,
+      duration: 700,
+    });
+  }, [center.lat, center.lon, monitorArea]);
+
+  useEffect(() => {
     if (!selectedAircraft || !mapRef.current) return;
     if (!Number.isFinite(selectedAircraft.lon) || !Number.isFinite(selectedAircraft.lat)) return;
 
@@ -202,12 +375,19 @@ export default function RadarMap({ aircraft, center, onSelectPlane, selectedAirc
   }, [selectedAircraft]);
 
   return (
-    <section className="map-wrap">
+    <section className={`map-wrap ${drawMode ? "drawing-area" : ""}`}>
       <div ref={mapNode} className="map" />
       <div className="radar-overlay">
         <span className="kicker">Radar / Setup</span>
         <strong>{status}</strong>
       </div>
+      {drawMode && (
+        <div className="draw-overlay">
+          <span className="kicker amber">Draw area</span>
+          <strong>Click two corners on the map</strong>
+          <button onClick={onCancelDrawArea}>Cancel</button>
+        </div>
+      )}
       <div className="credit">Data: adsb.fi open data · Map: OpenStreetMap</div>
     </section>
   );
