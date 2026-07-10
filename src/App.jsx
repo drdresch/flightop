@@ -746,7 +746,6 @@ function WallAircraftDisplay({
           </section>
 
           <section className="sign-readouts" aria-label="Aircraft details">
-            <div><span>Type</span><strong>{aircraftTypeLabel(selectedAircraft)}</strong></div>
             <div><span>Altitude</span><strong>{formatAlt(selectedAircraft.altitude)}</strong></div>
             <div><span>Speed</span><strong>{formatSpeed(selectedAircraft.groundSpeed)}</strong></div>
             <div><span>Heading</span><strong>{formatHeading(selectedAircraft.track)}</strong></div>
@@ -755,7 +754,7 @@ function WallAircraftDisplay({
               <span>Likely ATC</span>
               <strong>{selectedAtc.primary.facility}</strong>
               <small>{selectedAtc.primary.frequencies.join(" / ")}</small>
-              <em>Confidence: {selectedAtc.confidence} · {selectedAtc.reason}</em>
+              <em>Confidence: {selectedAtc.confidence}</em>
               <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">LiveATC</a>
             </div>
           </section>

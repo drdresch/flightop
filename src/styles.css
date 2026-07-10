@@ -1654,3 +1654,51 @@ dd {
     border-left: 0;
   }
 }
+
+/* The wall is the product: keep surrounding controls deliberately quiet. */
+.wall-mode .app-header {
+  min-height: 34px;
+}
+
+.wall-mode .app-header h1 {
+  display: none;
+}
+
+.wall-mode .eyebrow {
+  font-size: 10px;
+}
+
+.wall-mode .mode-switch {
+  padding: 3px;
+}
+
+.wall-mode .mode-switch button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 10px;
+}
+
+.wall-layout {
+  align-content: start;
+}
+
+.wall-sign {
+  align-self: start;
+}
+
+.sign-readouts > div:first-child {
+  display: grid;
+}
+
+.sign-readouts > div + div {
+  border-top: 0;
+}
+
+.sign-atc {
+  min-height: 0;
+}
+
+.sign-atc > small,
+.sign-atc em {
+  margin-top: 3px;
+}
