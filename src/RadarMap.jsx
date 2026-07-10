@@ -103,36 +103,79 @@ export default function RadarMap({
     resizeObserver.observe(mapNode.current);
     requestAnimationFrame(() => map.invalidateSize({ animate: false, pan: false }));
 
-    map.on("mousedown", (event) => {
-      if (!drawModeRef.current) return;
+    const mapContainer = map.getContainer();
+
+    function pointerPosition(event) {
+      const rect = mapContainer.getBoundingClientRect();
+      return L.point(event.clientX - rect.left, event.clientY - rect.top);
+    }
+
+    function handlePointerDown(event) {
+      if (!drawModeRef.current || (event.pointerType === "mouse" && event.button !== 0)) return;
+      event.preventDefault();
+      const point = pointerPosition(event);
+      const latlng = map.containerPointToLatLng(point);
+      mapContainer.setPointerCapture?.(event.pointerId);
       drawStartRef.current = {
-        latlng: event.latlng,
-        point: event.containerPoint,
+        latlng,
+        point,
+        pointerId: event.pointerId,
       };
-      onDraftBoundsChangeRef.current?.(boundsFromPoints(event.latlng, event.latlng));
-    });
+      onDraftBoundsChangeRef.current?.(boundsFromPoints(latlng, latlng));
+    }
 
-    map.on("mousemove", (event) => {
-      if (!drawModeRef.current || !drawStartRef.current) return;
-      onDraftBoundsChangeRef.current?.(boundsFromPoints(drawStartRef.current.latlng, event.latlng));
-    });
+    function handlePointerMove(event) {
+      const start = drawStartRef.current;
+      if (!drawModeRef.current || !start || start.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const latlng = map.containerPointToLatLng(pointerPosition(event));
+      onDraftBoundsChangeRef.current?.(boundsFromPoints(start.latlng, latlng));
+    }
 
-    map.on("mouseup", (event) => {
+    function finishPointerDraw(event, cancelled = false) {
       if (!drawModeRef.current || !drawStartRef.current) return;
       const start = drawStartRef.current;
+      if (start.pointerId !== event.pointerId) return;
       drawStartRef.current = null;
+      mapContainer.releasePointerCapture?.(event.pointerId);
 
-      if (start.point.distanceTo(event.containerPoint) < 8) {
+      if (cancelled) {
         onDraftBoundsChangeRef.current?.(null);
         return;
       }
 
-      onAreaDrawnRef.current?.(boundsFromPoints(start.latlng, event.latlng));
-    });
+      const point = pointerPosition(event);
+      if (start.point.distanceTo(point) < 8) {
+        onDraftBoundsChangeRef.current?.(null);
+        return;
+      }
+
+      onAreaDrawnRef.current?.(
+        boundsFromPoints(start.latlng, map.containerPointToLatLng(point))
+      );
+    }
+
+    function handlePointerUp(event) {
+      event.preventDefault();
+      finishPointerDraw(event);
+    }
+
+    function handlePointerCancel(event) {
+      finishPointerDraw(event, true);
+    }
+
+    mapContainer.addEventListener("pointerdown", handlePointerDown, { passive: false });
+    mapContainer.addEventListener("pointermove", handlePointerMove, { passive: false });
+    mapContainer.addEventListener("pointerup", handlePointerUp, { passive: false });
+    mapContainer.addEventListener("pointercancel", handlePointerCancel);
 
     return () => {
       resizeObserver.disconnect();
       cancelAnimationFrame(resizeFrame);
+      mapContainer.removeEventListener("pointerdown", handlePointerDown);
+      mapContainer.removeEventListener("pointermove", handlePointerMove);
+      mapContainer.removeEventListener("pointerup", handlePointerUp);
+      mapContainer.removeEventListener("pointercancel", handlePointerCancel);
       map.remove();
       mapRef.current = null;
       aircraftLayerRef.current = null;
