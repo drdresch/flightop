@@ -448,10 +448,6 @@ function aircraftTypeLabel(plane) {
   return plane.description || plane.typeCode || "Aircraft type unavailable";
 }
 
-function operatorLabel(plane) {
-  return plane.operator || plane.description || plane.typeCode || "Unknown operator";
-}
-
 function movementState(plane) {
   if (!plane) return "Unknown";
   if (plane.altitude === "ground") return "Ground";
@@ -733,9 +729,13 @@ function WallAircraftDisplay({
       {selectedAircraft ? (
         <div className="sign-main">
           <section className="sign-identity">
-            <span className="kicker">Operator</span>
-            <strong>{operatorLabel(selectedAircraft)}</strong>
-            <small>{aircraftTypeLabel(selectedAircraft)}</small>
+            <span className="kicker">Aircraft</span>
+            <strong>{aircraftTypeLabel(selectedAircraft)}</strong>
+            <small>
+              {selectedAircraft.operator
+                ? `Operator · ${selectedAircraft.operator}`
+                : "Operator unavailable"}
+            </small>
           </section>
 
           <section className="sign-flight">
