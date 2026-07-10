@@ -750,8 +750,8 @@ function WallAircraftDisplay({
   const tickerText = selectedAircraft
     ? `${aircraftTypeLabel(selectedAircraft)} ${locationText(selectedAircraft).toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasSourceRoute ? ` Route ${formatRoute(sourceRoute)}.` : " Route unavailable."}`
     : followTarget
-      ? `Waiting for the next ADS-B position for ${followTarget.label}.`
-      : "No airborne ADS-B positions match this scan right now.";
+      ? `Tracking ${followTarget.label}. Waiting for its next position update.`
+      : `Scan active. Monitoring ${monitorArea.label} for the next aircraft.`;
   const hasDistinctCallsign = Boolean(
     selectedAircraft?.callsign &&
       normalizeKey(selectedAircraft.callsign) !== normalizeKey(selectedAircraft.registration)
@@ -802,7 +802,7 @@ function WallAircraftDisplay({
         </div>
       ) : (
         <div className="sign-empty">
-          <span className="kicker amber">{followTarget ? "Following aircraft" : "Awaiting aircraft"}</span>
+          <span className="kicker amber">{followTarget ? "Follow active" : "Scan active"}</span>
           <strong>{tickerText}</strong>
         </div>
       )}
@@ -1314,7 +1314,7 @@ export default function App() {
                     <small>{formatAlt(plane.altitude)} · {formatRoute(plane)}</small>
                   </button>
                 ))}
-                {!wallAircraft.length && <p>No matches for this scan mode.</p>}
+                {!wallAircraft.length && <p>Scan active. Waiting for the next match.</p>}
               </section>
 
               <section className="control-bank trip-watch">
