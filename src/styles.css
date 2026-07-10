@@ -589,6 +589,90 @@ h1 {
   inset: 0;
 }
 
+.leaflet-container {
+  overflow: hidden;
+  background: #101412;
+  outline: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.leaflet-pane,
+.leaflet-tile,
+.leaflet-marker-icon,
+.leaflet-marker-shadow,
+.leaflet-tile-container,
+.leaflet-pane > svg,
+.leaflet-pane > canvas,
+.leaflet-zoom-box {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.leaflet-map-pane,
+.leaflet-pane,
+.leaflet-tile-container,
+.leaflet-zoom-animated {
+  transform-origin: 0 0;
+}
+
+.leaflet-tile {
+  visibility: hidden;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.leaflet-tile-loaded {
+  visibility: inherit;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  position: absolute;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.leaflet-top {
+  top: 0;
+}
+
+.leaflet-right {
+  right: 0;
+}
+
+.leaflet-bottom {
+  bottom: 0;
+}
+
+.leaflet-left {
+  left: 0;
+}
+
+.leaflet-control {
+  position: relative;
+  z-index: 800;
+  pointer-events: auto;
+}
+
+.leaflet-right .leaflet-control {
+  margin-right: 10px;
+}
+
+.leaflet-bottom .leaflet-control {
+  margin-bottom: 10px;
+}
+
+.leaflet-control-zoom a {
+  display: block;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  text-align: center;
+  text-decoration: none;
+  line-height: 30px;
+}
+
 .map .leaflet-tile {
   width: 256px !important;
   height: 256px !important;
