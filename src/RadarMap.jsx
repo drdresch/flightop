@@ -187,6 +187,9 @@ export default function RadarMap({
       mapRef.current.doubleClickZoom[drawMode ? "disable" : "enable"]();
       mapRef.current.touchZoom[drawMode ? "disable" : "enable"]();
     }
+    if (drawMode && mapNode.current) {
+      mapNode.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }, [drawMode, onDraftBoundsChange]);
 
   useEffect(() => {
