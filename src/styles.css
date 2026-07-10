@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap");
+
 :root {
   --bg: #070806;
   --charcoal: #111210;
@@ -19,6 +21,8 @@
     Consolas,
     "Liberation Mono",
     monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 * {
@@ -986,11 +990,11 @@ dd {
   overflow: hidden;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  border: 1px solid var(--line-strong);
+  border: 1px solid rgba(242, 234, 216, 0.28);
   background:
-    linear-gradient(90deg, rgba(240, 173, 61, 0.055), transparent 25%, transparent 75%, rgba(240, 173, 61, 0.045)),
-    #090a08;
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.012), var(--shadow);
+    linear-gradient(90deg, rgba(240, 173, 61, 0.04), transparent 30%, transparent 72%, rgba(240, 173, 61, 0.035)),
+    #060705;
+  box-shadow: inset 0 0 0 7px rgba(255, 255, 255, 0.012), inset 0 0 0 10px rgba(0, 0, 0, 0.65), var(--shadow);
 }
 
 .wall-sign::before {
@@ -998,9 +1002,9 @@ dd {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.34;
+  opacity: 0.48;
   background-image:
-    radial-gradient(circle, rgba(241, 255, 247, 0.18) 0 0.7px, transparent 0.9px),
+    radial-gradient(circle, rgba(241, 255, 247, 0.2) 0 0.6px, transparent 0.9px),
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 16%, rgba(0, 0, 0, 0.3));
   background-size: 5px 5px, 100% 100%;
 }
@@ -1020,8 +1024,8 @@ dd {
   border-color: var(--line);
   color: var(--muted);
   font-size: clamp(9px, 0.86vw, 12px);
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -1042,14 +1046,15 @@ dd {
 
 .sign-brand {
   color: var(--amber);
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .sign-main {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(150px, 0.7fr) minmax(230px, 1.2fr) minmax(310px, 1.35fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(340px, 0.82fr);
+  grid-template-rows: minmax(0, 0.85fr) minmax(0, 1.15fr);
   align-items: stretch;
 }
 
@@ -1067,8 +1072,16 @@ dd {
   justify-content: center;
 }
 
+.sign-flight {
+  grid-column: 1;
+  grid-row: 2;
+}
+
 .sign-identity {
-  border-right: 1px solid var(--line);
+  grid-column: 1;
+  grid-row: 1;
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .sign-identity strong {
@@ -1078,6 +1091,8 @@ dd {
   line-height: 1.08;
   overflow-wrap: anywhere;
   text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .sign-identity small {
@@ -1090,9 +1105,10 @@ dd {
 .sign-flight strong {
   margin-top: 8px;
   color: var(--letter);
-  font-size: clamp(40px, 6.3vw, 100px);
+  font-size: clamp(36px, 5.2vw, 82px);
   line-height: 0.94;
-  letter-spacing: 0;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   overflow-wrap: anywhere;
 }
 
@@ -1100,7 +1116,9 @@ dd {
   margin-top: clamp(14px, 2vh, 24px);
   color: var(--letter);
   font-size: clamp(15px, 1.65vw, 27px);
-  font-weight: 800;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   line-height: 1.18;
 }
 
@@ -1108,7 +1126,9 @@ dd {
   margin-top: 9px;
   color: var(--amber);
   font-size: clamp(12px, 1.1vw, 16px);
-  font-weight: 900;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .sign-route.muted {
@@ -1117,6 +1137,8 @@ dd {
 }
 
 .sign-readouts {
+  grid-column: 2;
+  grid-row: 1 / -1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: minmax(0, 1fr);
@@ -1140,8 +1162,8 @@ dd {
   display: block;
   color: var(--amber);
   font-size: clamp(9px, 0.82vw, 11px);
-  font-weight: 900;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -1152,6 +1174,9 @@ dd {
   font-size: clamp(15px, 1.55vw, 25px);
   line-height: 1.08;
   overflow-wrap: anywhere;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .sign-readouts strong small {
@@ -1177,6 +1202,9 @@ dd {
   font-size: clamp(10px, 0.9vw, 13px);
   font-style: normal;
   line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .sign-atc a {
@@ -1184,7 +1212,8 @@ dd {
   margin-top: 8px;
   color: var(--amber);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-decoration: none;
   text-transform: uppercase;
 }
@@ -1192,8 +1221,8 @@ dd {
 .sign-ticker {
   border-top: 1px solid var(--line);
   color: var(--letter);
-  letter-spacing: 0;
-  text-transform: none;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .sign-ticker > span {
@@ -1208,6 +1237,7 @@ dd {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: clamp(11px, 1vw, 15px);
+  font-weight: 600;
 }
 
 .sign-ticker small {
@@ -1229,6 +1259,9 @@ dd {
   color: var(--letter);
   font-size: clamp(24px, 4vw, 60px);
   line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .wall-utility-bar {
@@ -1335,7 +1368,7 @@ dd {
   }
 
   .sign-main {
-    grid-template-columns: minmax(120px, 0.65fr) minmax(205px, 1.1fr) minmax(280px, 1.25fr);
+    grid-template-columns: minmax(0, 1.65fr) minmax(295px, 0.9fr);
   }
 
   .sign-identity,
