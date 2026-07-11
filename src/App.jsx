@@ -746,7 +746,7 @@ function WallAircraftDisplay({
   );
   const statusText = followTarget
     ? `Following ${followTarget.label}`
-    : `${displayedAircraftCount.toLocaleString()} airborne${hiddenGroundCount ? ` · ${hiddenGroundCount} ground hidden` : ""}`;
+    : `${displayedAircraftCount.toLocaleString()} aircraft in rotation${hiddenGroundCount ? ` · ${hiddenGroundCount} ground hidden` : ""}`;
   const tickerText = selectedAircraft
     ? `${aircraftTypeLabel(selectedAircraft)} ${locationText(selectedAircraft).toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasSourceRoute ? ` Route ${formatRoute(sourceRoute)}.` : " Route unavailable."}`
     : followTarget
@@ -756,47 +756,85 @@ function WallAircraftDisplay({
     selectedAircraft?.callsign &&
       normalizeKey(selectedAircraft.callsign) !== normalizeKey(selectedAircraft.registration)
   );
+  const routeOrigin = sourceRoute?.origin || sourceRoute?.originName;
+  const routeDestination = sourceRoute?.destination || sourceRoute?.destinationName;
 
   return (
-    <section className="wall-sign" aria-label="FlightOp wall display">
-      <header className="sign-rail">
-        <span className="sign-brand">FLIGHTOP</span>
-        <span>{followTarget ? "FOLLOW MODE" : monitorArea.label}</span>
-        <span>{followTarget ? followTarget.label : activeScanMode.label}</span>
-        <span>{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "Syncing"}</span>
-      </header>
-
+    <section className="wall-sign ops-wall-sign" aria-label="FlightOp wall display">
       {selectedAircraft ? (
-        <div className="sign-main">
-          <section className="sign-identity">
-            <span className="kicker">Aircraft</span>
-            <strong>{aircraftTypeLabel(selectedAircraft)}</strong>
-            <p className="sign-operator">
-              <span>Operator / owner</span>
-              <b>{selectedAircraft.operator || "Private / unavailable"}</b>
-            </p>
+        <div className="ops-display">
+          <section className="ops-aircraft-identity">
+            <div className="ops-aircraft-mark" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </div>
+            <div className="ops-aircraft-copy">
+              <span className="kicker">Operator / owner</span>
+              <p className="ops-operator">{selectedAircraft.operator || "Private / unavailable"}</p>
+              <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
+              <div className="ops-flight-reference">
+                {hasDistinctCallsign && <b>{selectedAircraft.callsign}</b>}
+                {selectedAircraft.registration && <span>{selectedAircraft.registration}</span>}
+                {!hasDistinctCallsign && !selectedAircraft.registration && <span>{selectedAircraft.hex}</span>}
+              </div>
+            </div>
+            {!hasSourceRoute && (
+              <div className="ops-route-note">
+                <span aria-hidden="true">×</span>
+                <div>
+                  <strong>Route unavailable</strong>
+                  <small>No filed route available</small>
+                </div>
+              </div>
+            )}
           </section>
 
-          <section className={`sign-flight ${hasDistinctCallsign ? "" : "registration-only"}`}>
-            <span className="kicker">{hasDistinctCallsign ? "Flight" : "Registration"}</span>
-            <strong>{aircraftLabel(selectedAircraft)}</strong>
-            <p className="sign-location">{locationText(selectedAircraft)}</p>
-            <p className={hasSourceRoute ? "sign-route" : "sign-route muted"}>
-              {hasSourceRoute ? formatRoute(sourceRoute) : "Route unavailable"}
-            </p>
+          <section className="ops-journey">
+            <span className="kicker">{hasSourceRoute ? "Flight route" : "Current position"}</span>
+            {hasSourceRoute && routeOrigin && routeDestination ? (
+              <div className="ops-route-codes">
+                <strong>{routeOrigin}</strong>
+                <span className="ops-route-arrow" aria-hidden="true">→</span>
+                <strong>{routeDestination}</strong>
+              </div>
+            ) : (
+              <strong className="ops-position-headline">{locationText(selectedAircraft)}</strong>
+            )}
+            <div className="ops-location-line">
+              <span className="ops-pin" aria-hidden="true" />
+              <div>
+                <strong>{locationText(selectedAircraft)}</strong>
+                <small>{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</small>
+              </div>
+            </div>
           </section>
 
-          <section className="sign-readouts" aria-label="Aircraft details">
-            <div><span>Altitude</span><strong>{formatAlt(selectedAircraft.altitude)}</strong></div>
-            <div><span>Speed</span><strong>{formatSpeed(selectedAircraft.groundSpeed)}</strong></div>
-            <div><span>Heading</span><strong>{formatHeading(selectedAircraft.track)}</strong></div>
-            <div><span>Vertical</span><strong>{movementState(selectedAircraft)} <small>{formatRate(selectedAircraft.verticalRate)}</small></strong></div>
-            <div className="sign-atc">
-              <span>Likely ATC</span>
-              <strong>{selectedAtc.primary.facility}</strong>
-              <small>{selectedAtc.primary.frequencies.join(" / ")}</small>
-              <em>Confidence: {selectedAtc.confidence}</em>
-              <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">LiveATC</a>
+          <section className="ops-readouts" aria-label="Aircraft details">
+            <div className="ops-metric">
+              <span className="ops-metric-icon">ALT</span>
+              <div><small>Altitude</small><strong>{formatAlt(selectedAircraft.altitude)}</strong></div>
+            </div>
+            <div className="ops-metric">
+              <span className="ops-metric-icon">SPD</span>
+              <div><small>Speed</small><strong>{formatSpeed(selectedAircraft.groundSpeed)}</strong></div>
+            </div>
+            <div className="ops-metric">
+              <span className="ops-metric-icon">TRK</span>
+              <div><small>Track</small><strong>{formatHeading(selectedAircraft.track)}</strong></div>
+            </div>
+            <div className="ops-metric">
+              <span className="ops-metric-icon">V/S</span>
+              <div><small>Vertical</small><strong>{movementState(selectedAircraft)} <em>{formatRate(selectedAircraft.verticalRate)}</em></strong></div>
+            </div>
+            <div className="ops-atc">
+              <span className="ops-metric-icon">ATC</span>
+              <div>
+                <small>Likely ATC · {selectedAtc.confidence} confidence</small>
+                <strong>{selectedAtc.primary.facility}</strong>
+                <p>{selectedAtc.primary.frequencies.join(" / ")}</p>
+                <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">Listen on LiveATC</a>
+              </div>
             </div>
           </section>
         </div>
@@ -807,10 +845,10 @@ function WallAircraftDisplay({
         </div>
       )}
 
-      <footer className="sign-ticker">
-        <span>LIVE</span>
+      <footer className="sign-ticker ops-ticker">
+        <span>{followTarget ? "FOLLOW" : "LIVE"}</span>
         <p>{tickerText}</p>
-        <small>{statusText}</small>
+        <small>{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : status} · {statusText}</small>
       </footer>
     </section>
   );
@@ -1147,9 +1185,10 @@ export default function App() {
   return (
     <main className={`app ${viewMode}-mode ${presentationMode ? "presentation-mode" : ""}`}>
       <header className="app-header">
-        <div>
-          <div className="eyebrow">FLIGHTOP / {monitorArea.label}</div>
-          <h1>Wall Display</h1>
+        <div className="brand-lockup">
+          <span className="brand-emblem" aria-hidden="true"><i /><i /><i /></span>
+          <strong>FLIGHT<span>OP</span></strong>
+          <small>{monitorArea.label}</small>
         </div>
         <nav className="mode-switch" aria-label="Display mode">
           <button
@@ -1159,7 +1198,7 @@ export default function App() {
               setViewMode("wall");
             }}
           >
-            Wall Mode
+            <span className="mode-glyph wall-glyph" aria-hidden="true" /> Wall Mode
           </button>
           <button
             className={viewMode === "radar" ? "active" : ""}
@@ -1168,7 +1207,7 @@ export default function App() {
               setViewMode("radar");
             }}
           >
-            Radar / Setup
+            <span className="mode-glyph radar-glyph" aria-hidden="true" /> Radar / Setup
           </button>
           {viewMode === "wall" && (
             <button
@@ -1178,7 +1217,7 @@ export default function App() {
                 setPresentationMode(true);
               }}
             >
-              Presentation Mode
+              <span className="mode-glyph presentation-glyph" aria-hidden="true" /> Presentation
             </button>
           )}
         </nav>
@@ -1200,8 +1239,29 @@ export default function App() {
 
           {!presentationMode && (
             <>
-              <div className="wall-utility-bar">
-                <span>{rotationPaused ? "Rotation paused" : `Rotating every ${ROTATION_MS / 1000} seconds`}</span>
+              <div className="wall-utility-bar ops-console">
+                <div className="ops-console-actions">
+                  <button onClick={() => stepAircraft(-1)}>Previous</button>
+                  <button onClick={() => setRotationPaused((value) => !value)}>{rotationPaused ? "Resume" : "Pause"}</button>
+                  <button onClick={() => stepAircraft(1)}>Next</button>
+                </div>
+                <label className="ops-console-toggle">
+                  <input type="checkbox" checked={hideGroundAircraft} onChange={(event) => setHideGroundAircraft(event.target.checked)} />
+                  <span>Hide ground aircraft</span>
+                </label>
+                <label className="ops-console-select">
+                  <span>Scan mode</span>
+                  <select value={scanMode} onChange={(event) => setScanMode(event.target.value)}>
+                    {SCAN_MODES.map((mode) => <option value={mode.value} key={mode.value}>{mode.label}</option>)}
+                  </select>
+                </label>
+                <label className="ops-console-select radius-select">
+                  <span>Radius</span>
+                  <select value={monitorArea.radiusNm} onChange={(event) => updateCircleRadius(Number(event.target.value))}>
+                    {RADIUS_OPTIONS.map((radius) => <option value={radius} key={radius}>{radius} NM</option>)}
+                  </select>
+                </label>
+                <div className="ops-sync"><i /> <span>{autoRefresh ? "Synced" : "Manual"}<small>{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "Syncing"}</small></span></div>
                 <button onClick={() => setSetupOpen((value) => !value)} aria-expanded={setupOpen}>
                   {setupOpen ? "Close setup" : "Setup"}
                 </button>
