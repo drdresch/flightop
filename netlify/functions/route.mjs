@@ -36,6 +36,8 @@ export default async function handler(request) {
         destination: destinationCode,
         originName: origin.name || "",
         destinationName: destination.name || "",
+        originLabel: airportLocation(origin),
+        destinationLabel: airportLocation(destination),
         routeSource: "ADSBDB callsign route",
         routeConfidence: "Candidate",
       },
@@ -43,6 +45,16 @@ export default async function handler(request) {
   } catch (error) {
     return json({ ok: false, found: false, error: error.message });
   }
+}
+
+function airportLocation(airport) {
+  const city = airport.municipality || airport.city || "";
+  const rawRegion = airport.state || airport.region_name || airport.region || airport.iso_region || "";
+  const region = String(rawRegion).replace(/^US-/, "");
+  const country = airport.country_iso_name || airport.country_name || "";
+  if (city && region) return `${city}, ${region}`;
+  if (city && country && country !== "United States") return `${city}, ${country}`;
+  return city || airport.name || "";
 }
 
 function remember(callsign, value) {
