@@ -1185,6 +1185,15 @@ dd {
   text-transform: uppercase;
 }
 
+.ops-area-context {
+  margin-top: 14px;
+  color: #85898d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
 /* FlightOp operations console */
 body {
   background: #090b0d;
