@@ -1,10 +1,10 @@
-# FlightOp Product Spec
+# Flyover Product Spec
 
 ## Core idea
 
-FlightOp is not a FlightRadar24 clone.
+Flyover is not a FlightRadar24 clone.
 
-FlightOp is a FlightWall-style aviation display for a third monitor, wall screen, or tablet.
+Flyover is a FlightWall-style aviation display for a third monitor, wall screen, or tablet.
 
 The main experience is a passive LED-style wall display that rotates through aircraft in a selected area and shows useful, beautiful, readable flight information.
 
@@ -275,7 +275,7 @@ After changes, verify:
 
 ## Current priority
 
-Build FlightOp Wall Mode.
+Build Flyover Wall Mode.
 
 The display should feel like hardware, not a website.
 
