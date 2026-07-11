@@ -903,6 +903,7 @@ export default function App() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [monitorArea, setMonitorArea] = useState(loadMonitorArea);
   const [drawMode, setDrawMode] = useState(false);
+  const [pickCenterMode, setPickCenterMode] = useState(false);
   const [mapFocusRequest, setMapFocusRequest] = useState(0);
   const [draftBounds, setDraftBounds] = useState(null);
   const [areaNotice, setAreaNotice] = useState("");
@@ -1092,6 +1093,7 @@ export default function App() {
     setMonitorArea(DEFAULT_AREA);
     setDraftBounds(null);
     setDrawMode(false);
+    setPickCenterMode(false);
     setAreaNotice("Monitoring PDX AREA.");
   }
 
@@ -1100,6 +1102,7 @@ export default function App() {
     setViewMode("radar");
     setPresentationMode(false);
     setDrawMode(true);
+    setPickCenterMode(false);
     setDraftBounds(null);
     setAreaNotice("Draw Area mode active: click two map corners.");
   }
@@ -1108,6 +1111,25 @@ export default function App() {
     setDrawMode(false);
     setDraftBounds(null);
     setAreaNotice("");
+  }
+
+  function toggleRemoteAreaMode() {
+    setFollowTarget(null);
+    setViewMode("radar");
+    setPresentationMode(false);
+    setDrawMode(false);
+    setDraftBounds(null);
+    setPickCenterMode((active) => !active);
+    setAreaNotice(pickCenterMode ? "" : "Remote Area active: move the map with the directional pad, then choose Use map center.");
+  }
+
+  function applyRemoteArea(center) {
+    const radius = monitorArea.type === "circle" ? monitorArea.radiusNm : 20;
+    const area = makeCircleArea(center, radius, "REMOTE AREA", "remote");
+    setFollowTarget(null);
+    setMonitorArea(area);
+    setPickCenterMode(false);
+    setAreaNotice(`Monitoring ${area.label}.`);
   }
 
   function applyDrawnArea(bounds) {
@@ -1485,10 +1507,12 @@ export default function App() {
               draftBounds={draftBounds}
               drawMode={drawMode}
               focusRequest={mapFocusRequest}
+              onCenterPicked={applyRemoteArea}
               monitorArea={monitorArea}
               onAreaDrawn={applyDrawnArea}
               onCancelDrawArea={cancelDrawArea}
               onDraftBoundsChange={setDraftBounds}
+              pickCenterMode={pickCenterMode}
               onSelectPlane={selectPlane}
               selectedAircraft={selectedAircraft}
               status={status}
@@ -1505,6 +1529,9 @@ export default function App() {
                 <button onClick={drawMode ? cancelDrawArea : startDrawArea}>
                   <span className="draw-tool-icon" aria-hidden="true">✎</span>
                   {drawMode ? "Cancel draw" : "Draw area"}
+                </button>
+                <button onClick={toggleRemoteAreaMode} className={pickCenterMode ? "active" : ""}>
+                  {pickCenterMode ? "Cancel remote" : "Remote area"}
                 </button>
                 <button onClick={resetToPdxArea}>Reset PDX</button>
               </div>
