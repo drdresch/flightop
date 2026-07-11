@@ -796,6 +796,39 @@ h1 {
   backdrop-filter: blur(16px);
 }
 
+.remote-area-overlay {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+  width: min(330px, calc(100% - 32px));
+  padding: 12px 14px;
+  border: 1px solid rgba(240, 173, 61, 0.52);
+  border-radius: 6px;
+  background: rgba(5, 7, 6, 0.9);
+  transform: translateX(-50%);
+  text-align: center;
+  backdrop-filter: blur(16px);
+}
+
+.remote-area-overlay strong {
+  color: var(--letter);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.remote-area-overlay button {
+  min-height: 38px;
+  color: #11100d;
+  background: var(--amber);
+  border-color: var(--amber);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .draw-overlay strong {
   color: var(--letter);
   text-transform: uppercase;
