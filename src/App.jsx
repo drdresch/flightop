@@ -575,7 +575,7 @@ function atcCandidateFor(plane, monitorArea = DEFAULT_AREA) {
         frequencies: ["local sector varies"],
       },
       confidence: "Low",
-      reason: "This watch area is outside the PDX preset. ADS-B does not include active ATC frequency data, and FlightOp only has PDX-area candidate sectors right now.",
+      reason: "This watch area is outside the PDX preset. ADS-B does not include active ATC frequency data, and Flyover only has PDX-area candidate sectors right now.",
       candidates: [],
       liveAtcUrl: LIVE_ATC_HOME_URL,
     };
@@ -736,6 +736,7 @@ function WallAircraftDisplay({
   lastUpdated,
   monitorArea,
   onShowOnMap,
+  onStopFollow,
   selectedAircraft,
   selectedAtc,
   status,
@@ -797,7 +798,7 @@ function WallAircraftDisplay({
     : tickerText;
 
   return (
-    <section className="wall-sign ops-wall-sign" aria-label="FlightOp wall display">
+    <section className="wall-sign ops-wall-sign" aria-label="Flyover wall display">
       {selectedAircraft ? (
         <div className="ops-display">
           <section className="ops-aircraft-identity">
@@ -846,7 +847,10 @@ function WallAircraftDisplay({
             {!hasSourceRoute && (
               <p className="ops-area-context">{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</p>
             )}
-            <button className="ops-show-map" onClick={onShowOnMap}>Show on map</button>
+            <div className="ops-context-actions">
+              <button className="ops-show-map" onClick={onShowOnMap}>Show on map</button>
+              {followTarget && <button className="ops-stop-follow" onClick={onStopFollow}>Unfollow</button>}
+            </div>
           </section>
 
           <section className="ops-readouts" aria-label="Aircraft details">
@@ -1053,7 +1057,10 @@ export default function App() {
     const target = followTargetFromAircraft(plane);
     if (!target) return;
 
-    setFollowTarget(target);
+    setFollowTarget({
+      ...target,
+      returnArea: monitorArea.source === "follow" ? DEFAULT_AREA : monitorArea,
+    });
     setRotationPaused(true);
     setDrawMode(false);
     setDraftBounds(null);
@@ -1065,8 +1072,13 @@ export default function App() {
   }
 
   function stopFollowAircraft() {
+    const returnArea = followTarget?.returnArea
+      ? sanitizeMonitorArea(followTarget.returnArea)
+      : DEFAULT_AREA;
     setFollowTarget(null);
-    setAreaNotice("");
+    setMonitorArea(returnArea);
+    setRotationPaused(false);
+    setAreaNotice(`Monitoring ${returnArea.label}.`);
   }
 
   function updateCircleRadius(radius) {
@@ -1236,7 +1248,7 @@ export default function App() {
       <header className="app-header">
         <div className="brand-lockup">
           <span className="brand-emblem" aria-hidden="true"><i /><i /><i /></span>
-          <strong>FLIGHT<span>OP</span></strong>
+          <strong>FLY<span>OVER</span></strong>
           <small>{monitorArea.label}</small>
         </div>
         <nav className="mode-switch" aria-label="Display mode">
@@ -1273,7 +1285,7 @@ export default function App() {
       </header>
 
       {viewMode === "wall" ? (
-        <section className="wall-layout" aria-label="FlightOp wall mode">
+        <section className="wall-layout" aria-label="Flyover wall mode">
           <WallAircraftDisplay
             activeScanMode={activeScanMode}
             displayedAircraftCount={wallAircraft.length}
@@ -1286,6 +1298,7 @@ export default function App() {
               setMapFocusRequest((value) => value + 1);
               setViewMode("radar");
             }}
+            onStopFollow={stopFollowAircraft}
             selectedAircraft={selectedAircraft}
             selectedAtc={selectedAtc}
             status={status}
@@ -1409,7 +1422,7 @@ export default function App() {
                       Listen
                     </a>
                   </div>
-                  <p>ADS-B does not include the exact frequency. FlightOp shows likely ATC candidates only.</p>
+                  <p>ADS-B does not include the exact frequency. Flyover shows likely ATC candidates only.</p>
                 </section>
               )}
 
