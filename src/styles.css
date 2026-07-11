@@ -1204,6 +1204,25 @@ dd {
   opacity: 0.9;
 }
 
+.ops-police-mark {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: clamp(54px, 7vw, 96px);
+  aspect-ratio: 0.82;
+  color: #dcecff;
+  background: linear-gradient(145deg, #416f9e, #1d3854);
+  clip-path: polygon(50% 0, 91% 15%, 84% 67%, 50% 100%, 16% 67%, 9% 15%);
+  box-shadow: 0 0 24px rgba(87, 151, 215, 0.2);
+}
+
+.ops-police-mark span {
+  font-size: clamp(7px, .7vw, 10px);
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
 .ops-show-map {
   align-self: flex-start;
   margin-top: 22px;
@@ -1412,6 +1431,8 @@ body {
 .ops-journey { display: flex; flex-direction: column; justify-content: center; padding: 0 clamp(22px, 3vw, 48px); border-right: 1px solid #323539; }
 .ops-route-codes { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; }
 .ops-route-codes strong { color: #f2f2ef; font-size: clamp(34px, 4.2vw, 68px); line-height: 1; }
+.ops-route-airport { min-width: 0; }
+.ops-route-airport small { display: block; max-width: 18ch; margin-top: 10px; color: #93979b; font-size: clamp(9px, .9vw, 13px); font-weight: 600; letter-spacing: .05em; line-height: 1.3; text-transform: uppercase; }
 .ops-route-arrow { color: #f0ad3d; font-size: clamp(28px, 3vw, 46px); }
 .ops-position-headline { display: block; margin-top: 20px; color: #f2f2ef; font-size: clamp(27px, 3vw, 48px); line-height: 1.08; text-transform: uppercase; }
 .ops-location-line { display: flex; gap: 16px; align-items: center; margin-top: clamp(28px, 5vh, 58px); padding-top: 24px; border-top: 1px solid #2b2e31; }
