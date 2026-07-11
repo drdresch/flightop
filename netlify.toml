@@ -13,3 +13,8 @@
   from = "/api/aircraft"
   to = "/.netlify/functions/aircraft"
   status = 200
+
+[[redirects]]
+  from = "/api/location"
+  to = "/.netlify/functions/location"
+  status = 200
