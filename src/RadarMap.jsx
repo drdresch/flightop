@@ -53,8 +53,10 @@ export default function RadarMap({
   monitorArea,
   onAreaDrawn,
   onCancelDrawArea,
+  onCenterPicked,
   onDraftBoundsChange,
   onSelectPlane,
+  pickCenterMode,
   selectedAircraft,
   status,
 }) {
@@ -66,10 +68,14 @@ export default function RadarMap({
   const drawModeRef = useRef(drawMode);
   const onAreaDrawnRef = useRef(onAreaDrawn);
   const onDraftBoundsChangeRef = useRef(onDraftBoundsChange);
+  const pickCenterModeRef = useRef(pickCenterMode);
+  const onCenterPickedRef = useRef(onCenterPicked);
 
   drawModeRef.current = drawMode;
   onAreaDrawnRef.current = onAreaDrawn;
   onDraftBoundsChangeRef.current = onDraftBoundsChange;
+  pickCenterModeRef.current = pickCenterMode;
+  onCenterPickedRef.current = onCenterPicked;
 
   useEffect(() => {
     const L = window.L;
@@ -166,10 +172,17 @@ export default function RadarMap({
       finishPointerDraw(event, true);
     }
 
+    function handleRemoteKey(event) {
+      if (!pickCenterModeRef.current || event.key !== "Enter") return;
+      event.preventDefault();
+      onCenterPickedRef.current?.(map.getCenter());
+    }
+
     mapContainer.addEventListener("pointerdown", handlePointerDown, { passive: false });
     mapContainer.addEventListener("pointermove", handlePointerMove, { passive: false });
     mapContainer.addEventListener("pointerup", handlePointerUp, { passive: false });
     mapContainer.addEventListener("pointercancel", handlePointerCancel);
+    mapContainer.addEventListener("keydown", handleRemoteKey);
 
     return () => {
       resizeObserver.disconnect();
@@ -178,6 +191,7 @@ export default function RadarMap({
       mapContainer.removeEventListener("pointermove", handlePointerMove);
       mapContainer.removeEventListener("pointerup", handlePointerUp);
       mapContainer.removeEventListener("pointercancel", handlePointerCancel);
+      mapContainer.removeEventListener("keydown", handleRemoteKey);
       map.remove();
       mapRef.current = null;
       aircraftLayerRef.current = null;
@@ -239,6 +253,11 @@ export default function RadarMap({
   }, [drawMode, onDraftBoundsChange]);
 
   useEffect(() => {
+    if (!pickCenterMode || !mapNode.current) return;
+    mapNode.current.focus();
+  }, [pickCenterMode]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
@@ -272,6 +291,20 @@ export default function RadarMap({
           <span className="kicker amber">Draw area</span>
           <strong>Press and drag to draw a monitoring area</strong>
           <button onClick={onCancelDrawArea}>Cancel</button>
+        </div>
+      )}
+      {pickCenterMode && (
+        <div className="remote-area-overlay">
+          <span className="kicker amber">Remote area</span>
+          <strong>Use arrow keys to move the map</strong>
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onCenterPicked(mapRef.current.getCenter());
+            }}
+          >
+            Use map center
+          </button>
         </div>
       )}
       <div className="credit">Data: adsb.fi open data · Map: OpenStreetMap</div>
