@@ -1224,6 +1224,15 @@ export default function App() {
 
   return (
     <main className={`app ${viewMode}-mode ${presentationMode ? "presentation-mode" : ""}`}>
+      {presentationMode && (
+        <button
+          className="presentation-exit"
+          onClick={() => setPresentationMode(false)}
+          aria-label="Back to Wall Mode"
+        >
+          <span aria-hidden="true">←</span> Wall Mode
+        </button>
+      )}
       <header className="app-header">
         <div className="brand-lockup">
           <span className="brand-emblem" aria-hidden="true"><i /><i /><i /></span>
