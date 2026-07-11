@@ -742,6 +742,7 @@ function WallAircraftDisplay({
   status,
 }) {
   const [resolvedPlace, setResolvedPlace] = useState("");
+  const [resolvedRoute, setResolvedRoute] = useState(null);
   const sourceRoute = selectedAircraft ? getRouteForAircraft(selectedAircraft) : null;
   const hasSourceRoute = Boolean(
     sourceRoute?.origin ||
@@ -749,11 +750,15 @@ function WallAircraftDisplay({
       sourceRoute?.originName ||
       sourceRoute?.destinationName
   );
+  const displayRoute = hasSourceRoute ? sourceRoute : resolvedRoute;
+  const hasDisplayRoute = Boolean(
+    displayRoute?.origin || displayRoute?.destination || displayRoute?.originName || displayRoute?.destinationName
+  );
   const statusText = followTarget
     ? `Following ${followTarget.label}`
     : `${displayedAircraftCount.toLocaleString()} aircraft in rotation${hiddenGroundCount ? ` · ${hiddenGroundCount} ground hidden` : ""}`;
   const tickerText = selectedAircraft
-    ? `${aircraftTypeLabel(selectedAircraft)} ${locationText(selectedAircraft).toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasSourceRoute ? ` Route ${formatRoute(sourceRoute)}.` : " Route unavailable."}`
+    ? `${aircraftTypeLabel(selectedAircraft)} ${locationText(selectedAircraft).toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasDisplayRoute ? ` Route ${formatRoute(displayRoute)}.` : " Route unavailable."}`
     : followTarget
       ? `Tracking ${followTarget.label}. Waiting for its next position update.`
       : `Scan active. Monitoring ${monitorArea.label} for the next aircraft.`;
@@ -761,8 +766,8 @@ function WallAircraftDisplay({
     selectedAircraft?.callsign &&
       normalizeKey(selectedAircraft.callsign) !== normalizeKey(selectedAircraft.registration)
   );
-  const routeOrigin = sourceRoute?.origin || sourceRoute?.originName;
-  const routeDestination = sourceRoute?.destination || sourceRoute?.destinationName;
+  const routeOrigin = displayRoute?.origin || displayRoute?.originName;
+  const routeDestination = displayRoute?.destination || displayRoute?.destinationName;
   const airlineIdentity = getAirlineIdentity(selectedAircraft || {});
   const resolvedLocation = resolvedPlace
     ? `${selectedAircraft?.isOnGround ? "At" : "Over"} ${resolvedPlace}`
@@ -793,8 +798,24 @@ function WallAircraftDisplay({
     return () => controller.abort();
   }, [selectedAircraft?.id, selectedAircraft?.lat, selectedAircraft?.lon, selectedAircraft?.altitude]);
 
+  useEffect(() => {
+    const callsign = selectedAircraft?.callsign?.trim().toUpperCase() || "";
+    setResolvedRoute(null);
+    if (hasSourceRoute || !/^[A-Z]{3}\d/.test(callsign)) return undefined;
+
+    const controller = new AbortController();
+    fetch(`/api/route?callsign=${encodeURIComponent(callsign)}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.ok && data.found && data.route) setResolvedRoute(data.route);
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [selectedAircraft?.callsign, hasSourceRoute]);
+
   const displayTickerText = selectedAircraft
-    ? `${aircraftTypeLabel(selectedAircraft)} ${resolvedLocation.toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasSourceRoute ? ` Route ${formatRoute(sourceRoute)}.` : " Route unavailable."}`
+    ? `${aircraftTypeLabel(selectedAircraft)} ${resolvedLocation.toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasDisplayRoute ? ` Route ${formatRoute(displayRoute)}.` : " Route unavailable."}`
     : tickerText;
 
   return (
@@ -813,7 +834,7 @@ function WallAircraftDisplay({
                 {!hasDistinctCallsign && !selectedAircraft.registration && <span>{selectedAircraft.hex}</span>}
               </div>
             </div>
-            {!hasSourceRoute && (
+            {!hasDisplayRoute && (
               <div className="ops-route-note">
                 <span aria-hidden="true">×</span>
                 <div>
@@ -825,8 +846,8 @@ function WallAircraftDisplay({
           </section>
 
           <section className="ops-journey">
-            <span className="kicker">{hasSourceRoute ? "Flight route" : "Current position"}</span>
-            {hasSourceRoute && routeOrigin && routeDestination ? (
+            <span className="kicker">{hasDisplayRoute ? (hasSourceRoute ? "Flight route" : "Route candidate") : "Current position"}</span>
+            {hasDisplayRoute && routeOrigin && routeDestination ? (
               <div className="ops-route-codes">
                 <strong>{routeOrigin}</strong>
                 <span className="ops-route-arrow" aria-hidden="true">→</span>
@@ -835,7 +856,7 @@ function WallAircraftDisplay({
             ) : (
               <strong className="ops-position-headline">{resolvedLocation}</strong>
             )}
-            {hasSourceRoute && (
+            {hasDisplayRoute && (
               <div className="ops-location-line">
                 <span className="ops-pin" aria-hidden="true" />
                 <div>
@@ -844,7 +865,7 @@ function WallAircraftDisplay({
                 </div>
               </div>
             )}
-            {!hasSourceRoute && (
+            {!hasDisplayRoute && (
               <p className="ops-area-context">{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</p>
             )}
             <div className="ops-context-actions">
