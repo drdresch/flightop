@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { getAirlineIdentity } from "./lib/airlines.js";
 import { formatRoute, formatRouteDetail, getRouteForAircraft } from "./lib/routeResolver.js";
 import "./styles.css";
 
@@ -109,27 +110,6 @@ const DIRECTION_SHORT = [
   "NNW",
 ];
 
-const AIRLINE_BY_CALLSIGN_PREFIX = {
-  AAL: "American Airlines",
-  ASA: "Alaska Airlines",
-  DAL: "Delta Air Lines",
-  ENY: "Envoy Air",
-  FDX: "FedEx Express",
-  FFT: "Frontier Airlines",
-  GTI: "Atlas Air",
-  HAL: "Hawaiian Airlines",
-  JBU: "JetBlue Airways",
-  NKS: "Spirit Airlines",
-  PDT: "Piedmont Airlines",
-  QXE: "Horizon Air",
-  RPA: "Republic Airways",
-  SKW: "SkyWest Airlines",
-  SWA: "Southwest Airlines",
-  UAL: "United Airlines",
-  UPS: "UPS Airlines",
-  WJA: "WestJet",
-};
-
 function cleanText(value) {
   if (value == null) return "";
   return String(value).trim();
@@ -152,11 +132,6 @@ function cleanOperator(value) {
     return "";
   }
   return titleCase(text);
-}
-
-function operatorFromCallsign(value) {
-  const prefix = cleanText(value).toUpperCase().match(/^([A-Z]{3})\d/)?.[1];
-  return prefix ? AIRLINE_BY_CALLSIGN_PREFIX[prefix] || "" : "";
 }
 
 function firstFinite(values) {
@@ -402,6 +377,13 @@ function normalizeAircraft(plane, monitorArea = DEFAULT_AREA) {
     ? "ground"
     : normalizeAltitude(plane.altitude ?? plane.alt_baro ?? plane.alt_geom);
   const route = getRouteForAircraft(plane);
+  const operator = cleanOperator(plane.operator || plane.ownOp);
+  const airlineIdentity = getAirlineIdentity({
+    callsign: plane.flight || plane.callsign,
+    operator,
+    description: plane.description || plane.desc,
+    typeCode: plane.typeCode || plane.t,
+  });
 
   return {
     raw: plane,
@@ -411,9 +393,7 @@ function normalizeAircraft(plane, monitorArea = DEFAULT_AREA) {
     registration: cleanText(plane.registration || plane.r || plane.reg),
     typeCode: cleanText(plane.typeCode || plane.t),
     description: titleCase(plane.description || plane.desc),
-    operator:
-      operatorFromCallsign(plane.flight || plane.callsign) ||
-      cleanOperator(plane.operator || plane.ownOp),
+    operator: airlineIdentity.type === "unknown" ? operator : airlineIdentity.displayName,
     category: cleanText(plane.category),
     squawk: cleanText(plane.squawk),
     emergency: cleanText(plane.emergency) && cleanText(plane.emergency) !== "none",
@@ -726,6 +706,28 @@ function findFollowedAircraft(aircraft, target) {
   return aircraft.find((plane) => aircraftMatchesFollowTarget(plane, target)) || null;
 }
 
+function AirlineMark({ identity }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  useEffect(() => setLogoFailed(false), [identity.logoPath]);
+
+  if (identity.logoPath && !logoFailed) {
+    return (
+      <div className="ops-airline-logo">
+        <img src={identity.logoPath} alt="" onError={() => setLogoFailed(true)} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="ops-aircraft-mark" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </div>
+  );
+}
+
 function WallAircraftDisplay({
   activeScanMode,
   displayedAircraftCount,
@@ -733,10 +735,12 @@ function WallAircraftDisplay({
   hiddenGroundCount,
   lastUpdated,
   monitorArea,
+  onShowOnMap,
   selectedAircraft,
   selectedAtc,
   status,
 }) {
+  const [resolvedPlace, setResolvedPlace] = useState("");
   const sourceRoute = selectedAircraft ? getRouteForAircraft(selectedAircraft) : null;
   const hasSourceRoute = Boolean(
     sourceRoute?.origin ||
@@ -758,20 +762,49 @@ function WallAircraftDisplay({
   );
   const routeOrigin = sourceRoute?.origin || sourceRoute?.originName;
   const routeDestination = sourceRoute?.destination || sourceRoute?.destinationName;
+  const airlineIdentity = getAirlineIdentity(selectedAircraft || {});
+  const resolvedLocation = resolvedPlace
+    ? `${selectedAircraft?.isOnGround ? "At" : "Over"} ${resolvedPlace}`
+    : locationText(selectedAircraft);
+
+  useEffect(() => {
+    if (!selectedAircraft || !Number.isFinite(selectedAircraft.lat) || !Number.isFinite(selectedAircraft.lon)) {
+      setResolvedPlace("");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      lat: selectedAircraft.lat,
+      lon: selectedAircraft.lon,
+      altitude: selectedAircraft.altitude === "ground" ? 0 : selectedAircraft.altitude || "",
+    });
+    setResolvedPlace("");
+    fetch(`/api/location?${params}`, { signal: controller.signal })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.ok && data.label) setResolvedPlace(data.label);
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") setResolvedPlace("");
+      });
+
+    return () => controller.abort();
+  }, [selectedAircraft?.id, selectedAircraft?.lat, selectedAircraft?.lon, selectedAircraft?.altitude]);
+
+  const displayTickerText = selectedAircraft
+    ? `${aircraftTypeLabel(selectedAircraft)} ${resolvedLocation.toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasSourceRoute ? ` Route ${formatRoute(sourceRoute)}.` : " Route unavailable."}`
+    : tickerText;
 
   return (
     <section className="wall-sign ops-wall-sign" aria-label="FlightOp wall display">
       {selectedAircraft ? (
         <div className="ops-display">
           <section className="ops-aircraft-identity">
-            <div className="ops-aircraft-mark" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </div>
+            <AirlineMark identity={airlineIdentity} />
             <div className="ops-aircraft-copy">
               <span className="kicker">Operator / owner</span>
-              <p className="ops-operator">{selectedAircraft.operator || "Private / unavailable"}</p>
+              <p className="ops-operator">{airlineIdentity.displayName}</p>
               <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
               <div className="ops-flight-reference">
                 {hasDistinctCallsign && <b>{selectedAircraft.callsign}</b>}
@@ -799,15 +832,16 @@ function WallAircraftDisplay({
                 <strong>{routeDestination}</strong>
               </div>
             ) : (
-              <strong className="ops-position-headline">{locationText(selectedAircraft)}</strong>
+              <strong className="ops-position-headline">{resolvedLocation}</strong>
             )}
             <div className="ops-location-line">
               <span className="ops-pin" aria-hidden="true" />
               <div>
-                <strong>{locationText(selectedAircraft)}</strong>
+                <strong>{resolvedLocation}</strong>
                 <small>{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</small>
               </div>
             </div>
+            <button className="ops-show-map" onClick={onShowOnMap}>Show on map</button>
           </section>
 
           <section className="ops-readouts" aria-label="Aircraft details">
@@ -847,7 +881,7 @@ function WallAircraftDisplay({
 
       <footer className="sign-ticker ops-ticker">
         <span>{followTarget ? "FOLLOW" : "LIVE"}</span>
-        <p>{tickerText}</p>
+        <p>{displayTickerText}</p>
         <small>{lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : status} · {statusText}</small>
       </footer>
     </section>
@@ -860,6 +894,7 @@ export default function App() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [monitorArea, setMonitorArea] = useState(loadMonitorArea);
   const [drawMode, setDrawMode] = useState(false);
+  const [mapFocusRequest, setMapFocusRequest] = useState(0);
   const [draftBounds, setDraftBounds] = useState(null);
   const [areaNotice, setAreaNotice] = useState("");
   const [followTarget, setFollowTarget] = useState(loadFollowTarget);
@@ -1232,6 +1267,11 @@ export default function App() {
             hiddenGroundCount={hideGroundAircraft ? hiddenGroundCount : 0}
             lastUpdated={lastUpdated}
             monitorArea={monitorArea}
+            onShowOnMap={() => {
+              setPresentationMode(false);
+              setMapFocusRequest((value) => value + 1);
+              setViewMode("radar");
+            }}
             selectedAircraft={selectedAircraft}
             selectedAtc={selectedAtc}
             status={status}
@@ -1417,6 +1457,7 @@ export default function App() {
               center={monitorArea.center}
               draftBounds={draftBounds}
               drawMode={drawMode}
+              focusRequest={mapFocusRequest}
               monitorArea={monitorArea}
               onAreaDrawn={applyDrawnArea}
               onCancelDrawArea={cancelDrawArea}
