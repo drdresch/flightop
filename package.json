@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "copy-logos": "node scripts/copy-airline-logos.mjs",
+    "prebuild": "npm run copy-logos",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -13,6 +15,7 @@
     "vite": "^6.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "simple-icons": "16.25.0",
     "maplibre-gl": "^5.0.1"
   },
   "devDependencies": {}
