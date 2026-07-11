@@ -25,7 +25,7 @@ export default async function handler(request) {
       {
         headers: {
           Accept: "application/json",
-          "User-Agent": "FlightOp/1.0 (https://flightop.netlify.app/)",
+          "User-Agent": "Flyover/1.0 (https://flightop.netlify.app/)",
         },
       }
     );
