@@ -8,7 +8,7 @@ export default async function handler(request) {
 
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "flightop personal dashboard"
+        "User-Agent": "Flyover personal aviation display"
       }
     });
 
