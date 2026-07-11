@@ -1402,6 +1402,34 @@ body {
 
 .presentation-mode .ops-wall-sign { border-radius: 8px; }
 
+.presentation-exit {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 30;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-color: rgba(240, 173, 61, 0.5);
+  color: #f0ad3d;
+  background: rgba(9, 11, 13, 0.88);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(10px);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.presentation-exit span {
+  margin-right: 6px;
+  font-size: 16px;
+  vertical-align: -1px;
+}
+
+.presentation-exit:not(:hover) {
+  opacity: 0.62;
+}
+
 @media (max-height: 800px) and (min-width: 901px) {
   .app { padding: 8px; gap: 8px; }
   .app-header { min-height: 58px; }
