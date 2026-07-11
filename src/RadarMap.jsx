@@ -49,6 +49,7 @@ export default function RadarMap({
   center,
   draftBounds,
   drawMode,
+  focusRequest,
   monitorArea,
   onAreaDrawn,
   onCancelDrawArea,
@@ -156,6 +157,7 @@ export default function RadarMap({
     }
 
     function handlePointerUp(event) {
+      if (!drawModeRef.current || !drawStartRef.current) return;
       event.preventDefault();
       finishPointerDraw(event);
     }
@@ -229,6 +231,7 @@ export default function RadarMap({
       mapRef.current.boxZoom[drawMode ? "disable" : "enable"]();
       mapRef.current.doubleClickZoom[drawMode ? "disable" : "enable"]();
       mapRef.current.touchZoom[drawMode ? "disable" : "enable"]();
+      mapRef.current.scrollWheelZoom[drawMode ? "disable" : "enable"]();
     }
     if (drawMode && mapNode.current) {
       mapNode.current.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -252,10 +255,10 @@ export default function RadarMap({
   }, [center.lat, center.lon, monitorArea]);
 
   useEffect(() => {
-    if (!selectedAircraft || !mapRef.current) return;
+    if (!focusRequest || !selectedAircraft || !mapRef.current) return;
     if (!Number.isFinite(selectedAircraft.lon) || !Number.isFinite(selectedAircraft.lat)) return;
-    mapRef.current.flyTo([selectedAircraft.lat, selectedAircraft.lon], 9, { duration: 0.8 });
-  }, [selectedAircraft]);
+    mapRef.current.flyTo([selectedAircraft.lat, selectedAircraft.lon], 10, { duration: 0.6 });
+  }, [focusRequest, selectedAircraft]);
 
   return (
     <section className={`map-wrap ${drawMode ? "drawing-area" : ""}`}>
