@@ -1354,9 +1354,36 @@ body {
 }
 
 @media (max-width: 520px) {
+  html,
+  body,
+  #root,
+  .app {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-header,
+  .wall-layout,
+  .wall-sign.ops-wall-sign,
+  .ops-display,
+  .ops-console,
+  .brand-lockup,
+  .mode-switch {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .brand-emblem { display: none; }
+  .brand-lockup > strong { font-size: 18px; }
+  .mode-switch button { min-width: 0; white-space: normal; }
   .ops-console { grid-template-columns: 1fr; }
   .ops-console-actions, .ops-console-toggle { grid-column: 1; }
+  .ops-console-actions { min-width: 0; }
+  .ops-console-actions button { min-width: 0; padding: 7px 5px; }
   .radius-select { display: none; }
+  .ops-ticker p { white-space: normal; }
 }
 
 @media (max-width: 720px) {
