@@ -43,12 +43,24 @@ function clean(value) {
 
 export function getAirlineIdentity(aircraft = {}) {
   const callsign = clean(aircraft.callsign || aircraft.flight).toUpperCase();
+  const operator = clean(aircraft.operator || aircraft.ownOp);
+  if (/\b(POLICE|SHERIFF|STATE PATROL|LAW ENFORCEMENT)\b/i.test(operator)) {
+    return {
+      prefix: "",
+      displayName: operator,
+      shortName: operator,
+      logoPath: null,
+      accentColor: "#78aee8",
+      type: "law-enforcement",
+    };
+  }
+
   const letters = callsign.match(/^([A-Z]{2,3})/)?.[1] || "";
   const identity = AIRLINES[letters] || AIRLINES[letters.slice(0, 3)] || AIRLINES[letters.slice(0, 2)];
   if (identity) return identity;
 
   const fallbackName =
-    clean(aircraft.operator || aircraft.ownOp) ||
+    operator ||
     clean(aircraft.description || aircraft.typeCode || aircraft.t) ||
     "Unknown Operator";
 
