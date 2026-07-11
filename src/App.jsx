@@ -711,6 +711,10 @@ function AirlineMark({ identity }) {
 
   useEffect(() => setLogoFailed(false), [identity.logoPath]);
 
+  if (identity.type === "law-enforcement") {
+    return <div className="ops-police-mark" aria-label="Law enforcement aircraft"><span>Police</span></div>;
+  }
+
   if (identity.logoPath && !logoFailed) {
     return (
       <div className="ops-airline-logo">
@@ -849,9 +853,15 @@ function WallAircraftDisplay({
             <span className="kicker">{hasDisplayRoute ? (hasSourceRoute ? "Flight route" : "Route candidate") : "Current position"}</span>
             {hasDisplayRoute && routeOrigin && routeDestination ? (
               <div className="ops-route-codes">
-                <strong>{routeOrigin}</strong>
+                <div className="ops-route-airport">
+                  <strong>{routeOrigin}</strong>
+                  {displayRoute.originLabel && <small>{displayRoute.originLabel}</small>}
+                </div>
                 <span className="ops-route-arrow" aria-hidden="true">→</span>
-                <strong>{routeDestination}</strong>
+                <div className="ops-route-airport">
+                  <strong>{routeDestination}</strong>
+                  {displayRoute.destinationLabel && <small>{displayRoute.destinationLabel}</small>}
+                </div>
               </div>
             ) : (
               <strong className="ops-position-headline">{resolvedLocation}</strong>
