@@ -834,13 +834,18 @@ function WallAircraftDisplay({
             ) : (
               <strong className="ops-position-headline">{resolvedLocation}</strong>
             )}
-            <div className="ops-location-line">
-              <span className="ops-pin" aria-hidden="true" />
-              <div>
-                <strong>{resolvedLocation}</strong>
-                <small>{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</small>
+            {hasSourceRoute && (
+              <div className="ops-location-line">
+                <span className="ops-pin" aria-hidden="true" />
+                <div>
+                  <strong>{resolvedLocation}</strong>
+                  <small>{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</small>
+                </div>
               </div>
-            </div>
+            )}
+            {!hasSourceRoute && (
+              <p className="ops-area-context">{followTarget ? "Follow mode active" : `${monitorArea.label} · ${activeScanMode.label}`}</p>
+            )}
             <button className="ops-show-map" onClick={onShowOnMap}>Show on map</button>
           </section>
 
