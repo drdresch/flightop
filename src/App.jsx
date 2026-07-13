@@ -552,6 +552,34 @@ function locationText(plane) {
   return `${Math.round(distance)} NM ${directionWord(bearing)} of ${label}`;
 }
 
+function angleDifference(first, second) {
+  const difference = Math.abs((((first - second) % 360) + 540) % 360 - 180);
+  return Number.isFinite(difference) ? difference : null;
+}
+
+function routeCandidateFitsAircraft(route, aircraft) {
+  if (!route?.originPosition || !route?.destinationPosition || !aircraft) return true;
+  const position = { lat: aircraft.lat, lon: aircraft.lon };
+  if (!Number.isFinite(position.lat) || !Number.isFinite(position.lon)) return true;
+
+  const routeLength = distanceNm(route.originPosition, route.destinationPosition);
+  const fromOrigin = distanceNm(route.originPosition, position);
+  const toDestination = distanceNm(position, route.destinationPosition);
+  if (![routeLength, fromOrigin, toDestination].every(Number.isFinite) || routeLength < 10) return true;
+
+  // A real flight can deviate around weather and airspace, but it should not be
+  // dramatically farther than the complete airport-to-airport journey.
+  if (fromOrigin + toDestination > routeLength * 1.55 + 120) return false;
+
+  const track = Number(aircraft.track);
+  if (Number.isFinite(track) && toDestination > 35) {
+    const towardDestination = bearingDegrees(position, route.destinationPosition);
+    const difference = angleDifference(track, towardDestination);
+    if (difference != null && difference > 105) return false;
+  }
+  return true;
+}
+
 function isAirlinerOrCargo(plane) {
   const blob = [
     plane.callsign,
@@ -839,9 +867,12 @@ function WallAircraftDisplay({
   const routeOrigin = displayRoute?.origin || displayRoute?.originName;
   const routeDestination = displayRoute?.destination || displayRoute?.destinationName;
   const airlineIdentity = getAirlineIdentity(selectedAircraft || {});
+  const coordinateLocation = Number.isFinite(selectedAircraft?.lat) && Number.isFinite(selectedAircraft?.lon)
+    ? `Over ${selectedAircraft.lat.toFixed(3)}, ${selectedAircraft.lon.toFixed(3)}`
+    : "Position unavailable";
   const resolvedLocation = resolvedPlace
     ? `${selectedAircraft?.isOnGround ? "At" : "Over"} ${resolvedPlace}`
-    : locationText(selectedAircraft);
+    : coordinateLocation;
 
   useEffect(() => {
     if (!selectedAircraft || !Number.isFinite(selectedAircraft.lat) || !Number.isFinite(selectedAircraft.lon)) {
@@ -877,12 +908,14 @@ function WallAircraftDisplay({
     fetch(`/api/route?callsign=${encodeURIComponent(callsign)}`, { signal: controller.signal })
       .then((response) => response.json())
       .then((data) => {
-        if (data?.ok && data.found && data.route) setResolvedRoute(data.route);
+        if (data?.ok && data.found && data.route && routeCandidateFitsAircraft(data.route, selectedAircraft)) {
+          setResolvedRoute(data.route);
+        }
       })
       .catch(() => {});
 
     return () => controller.abort();
-  }, [selectedAircraft?.callsign, hasSourceRoute]);
+  }, [selectedAircraft?.callsign, selectedAircraft?.lat, selectedAircraft?.lon, selectedAircraft?.track, hasSourceRoute]);
 
   const displayTickerText = selectedAircraft
     ? `${aircraftTypeLabel(selectedAircraft)} ${resolvedLocation.toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasDisplayRoute ? ` Route ${formatRoute(displayRoute)}.` : " Route unavailable."}`
