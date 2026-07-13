@@ -1931,8 +1931,17 @@ body {
 .wall-controls.open {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  max-height: min(38svh, 290px);
+  position: fixed;
+  z-index: 1200;
+  right: clamp(10px, 2vw, 28px);
+  bottom: clamp(10px, 2vw, 28px);
+  left: clamp(10px, 2vw, 28px);
+  max-height: min(72svh, 620px);
+  padding: 16px;
   overflow: auto;
+  border: 1px solid var(--amber);
+  background: rgba(8, 10, 9, 0.98);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.72);
 }
 
 .presentation-mode .wall-sign {
@@ -2089,7 +2098,7 @@ body {
 
   .wall-controls.open {
     grid-template-columns: 1fr;
-    max-height: none;
+    max-height: 82svh;
   }
 
   .sign-ticker small {
