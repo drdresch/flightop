@@ -38,6 +38,8 @@ export default async function handler(request) {
         destinationName: destination.name || "",
         originLabel: airportLocation(origin),
         destinationLabel: airportLocation(destination),
+        originPosition: airportPosition(origin),
+        destinationPosition: airportPosition(destination),
         routeSource: "ADSBDB callsign route",
         routeConfidence: "Candidate",
       },
@@ -45,6 +47,12 @@ export default async function handler(request) {
   } catch (error) {
     return json({ ok: false, found: false, error: error.message });
   }
+}
+
+function airportPosition(airport) {
+  const lat = Number(airport.latitude);
+  const lon = Number(airport.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
 }
 
 function airportLocation(airport) {
