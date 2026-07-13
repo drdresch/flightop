@@ -22,7 +22,7 @@ function boundsFromPoints(first, second) {
   };
 }
 
-function updateAreaLayer(L, layerGroup, monitorArea, draftBounds) {
+function updateAreaLayer(L, layerGroup, monitorArea, draftPoints) {
   layerGroup.clearLayers();
   const style = {
     color: "#f0ad3d",
@@ -33,8 +33,18 @@ function updateAreaLayer(L, layerGroup, monitorArea, draftBounds) {
     dashArray: "8 6",
   };
 
-  if (draftBounds || (monitorArea.type === "rectangle" && monitorArea.bounds)) {
-    L.rectangle(areaBounds(draftBounds || monitorArea.bounds), style).addTo(layerGroup);
+  if (draftPoints?.length) {
+    L.polygon(draftPoints.map((point) => [point.lat, point.lon]), style).addTo(layerGroup);
+    return;
+  }
+
+  if (monitorArea.type === "polygon" && monitorArea.points?.length) {
+    L.polygon(monitorArea.points.map((point) => [point.lat, point.lon]), style).addTo(layerGroup);
+    return;
+  }
+
+  if (monitorArea.type === "rectangle" && monitorArea.bounds) {
+    L.rectangle(areaBounds(monitorArea.bounds), style).addTo(layerGroup);
     return;
   }
 
@@ -124,19 +134,23 @@ export default function RadarMap({
       const latlng = map.containerPointToLatLng(point);
       mapContainer.setPointerCapture?.(event.pointerId);
       drawStartRef.current = {
-        latlng,
-        point,
+        points: [{ lat: latlng.lat, lon: latlng.lng }],
+        lastPoint: point,
         pointerId: event.pointerId,
       };
-      onDraftBoundsChangeRef.current?.(boundsFromPoints(latlng, latlng));
+      onDraftBoundsChangeRef.current?.([{ lat: latlng.lat, lon: latlng.lng }]);
     }
 
     function handlePointerMove(event) {
       const start = drawStartRef.current;
       if (!drawModeRef.current || !start || start.pointerId !== event.pointerId) return;
       event.preventDefault();
-      const latlng = map.containerPointToLatLng(pointerPosition(event));
-      onDraftBoundsChangeRef.current?.(boundsFromPoints(start.latlng, latlng));
+      const point = pointerPosition(event);
+      if (start.lastPoint.distanceTo(point) < 4) return;
+      const latlng = map.containerPointToLatLng(point);
+      start.lastPoint = point;
+      start.points.push({ lat: latlng.lat, lon: latlng.lng });
+      onDraftBoundsChangeRef.current?.([...start.points]);
     }
 
     function finishPointerDraw(event, cancelled = false) {
@@ -151,15 +165,11 @@ export default function RadarMap({
         return;
       }
 
-      const point = pointerPosition(event);
-      if (start.point.distanceTo(point) < 8) {
+      if (start.points.length < 3) {
         onDraftBoundsChangeRef.current?.(null);
         return;
       }
-
-      onAreaDrawnRef.current?.(
-        boundsFromPoints(start.latlng, map.containerPointToLatLng(point))
-      );
+      onAreaDrawnRef.current?.(start.points);
     }
 
     function handlePointerUp(event) {
@@ -261,7 +271,7 @@ export default function RadarMap({
     const map = mapRef.current;
     if (!map) return;
 
-    if (monitorArea.type === "rectangle" && monitorArea.bounds) {
+    if ((monitorArea.type === "rectangle" || monitorArea.type === "polygon") && monitorArea.bounds) {
       map.fitBounds(areaBounds(monitorArea.bounds), { padding: [40, 40], maxZoom: 10 });
       return;
     }
@@ -289,7 +299,7 @@ export default function RadarMap({
       {drawMode && (
         <div className="draw-overlay">
           <span className="kicker amber">Draw area</span>
-          <strong>Press and drag to draw a monitoring area</strong>
+          <strong>Press and trace the boundary. Release to close it.</strong>
           <button onClick={onCancelDrawArea}>Cancel</button>
         </div>
       )}
