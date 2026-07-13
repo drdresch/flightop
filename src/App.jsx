@@ -255,6 +255,27 @@ function radiusForBounds(bounds) {
   return clampNumber(Math.ceil(radius + 5), 1, 250, DEFAULT_RADIUS_NM);
 }
 
+function normalizePolygon(points) {
+  if (!Array.isArray(points)) return [];
+  return points
+    .map((point) => ({
+      lat: clampNumber(point?.lat, -90, 90, NaN),
+      lon: normalizeLon(point?.lon ?? point?.lng),
+    }))
+    .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon));
+}
+
+function boundsForPolygon(points) {
+  const normalized = normalizePolygon(points);
+  if (!normalized.length) return null;
+  return normalizeBounds({
+    north: Math.max(...normalized.map((point) => point.lat)),
+    south: Math.min(...normalized.map((point) => point.lat)),
+    east: Math.max(...normalized.map((point) => point.lon)),
+    west: Math.min(...normalized.map((point) => point.lon)),
+  });
+}
+
 function makeCircleArea(center, radiusNm = DEFAULT_RADIUS_NM, label = "CUSTOM AREA", source = "custom") {
   const normalizedCenter = normalizeCenter(center);
   const normalizedRadius = clampNumber(radiusNm, 1, 250, DEFAULT_RADIUS_NM);
@@ -290,8 +311,32 @@ function makeRectangleArea(bounds, label = "DRAWN AREA", source = "drawn") {
   };
 }
 
+function makePolygonArea(points, label = "DRAWN AREA", source = "drawn") {
+  const normalizedPoints = normalizePolygon(points);
+  const bounds = boundsForPolygon(normalizedPoints);
+  if (normalizedPoints.length < 3 || !bounds) return DEFAULT_AREA;
+  const center = centerFromBounds(bounds);
+  const fetchRadiusNm = radiusForBounds(bounds);
+
+  return {
+    id: `${source}-${Math.round(center.lat * 1000)}-${Math.round(center.lon * 1000)}`,
+    type: "polygon",
+    label,
+    shortLabel: label.replace(/\s+AREA$/i, ""),
+    center,
+    radiusNm: fetchRadiusNm,
+    fetchRadiusNm,
+    bounds,
+    points: normalizedPoints,
+    source,
+  };
+}
+
 function sanitizeMonitorArea(area) {
   if (!area || typeof area !== "object") return DEFAULT_AREA;
+  if (area.type === "polygon" && area.points) {
+    return makePolygonArea(area.points, cleanText(area.label) || "DRAWN AREA", area.source || "drawn");
+  }
   if (area.type === "rectangle" && area.bounds) {
     return makeRectangleArea(area.bounds, cleanText(area.label) || "DRAWN AREA", area.source || "drawn");
   }
@@ -326,11 +371,32 @@ function areaContainsAircraft(area, plane) {
     );
   }
 
+
+  if (area.type === "polygon" && area.points?.length >= 3) {
+    const points = normalizePolygon(area.points);
+    let inside = false;
+    for (let index = 0, previous = points.length - 1; index < points.length; previous = index++) {
+      const currentPoint = points[index];
+      const previousPoint = points[previous];
+      const crosses =
+        (currentPoint.lat > plane.lat) !== (previousPoint.lat > plane.lat) &&
+        plane.lon <
+          ((previousPoint.lon - currentPoint.lon) * (plane.lat - currentPoint.lat)) /
+            (previousPoint.lat - currentPoint.lat) +
+            currentPoint.lon;
+      if (crosses) inside = !inside;
+    }
+    return inside;
+  }
+
   const distance = distanceNm(area.center, { lat: plane.lat, lon: plane.lon });
   return Number.isFinite(distance) && distance <= area.radiusNm;
 }
 
 function areaSummary(area) {
+  if (area.type === "polygon") {
+    return `${area.label} · traced boundary · ${Math.round(area.fetchRadiusNm)} NM fetch`;
+  }
   if (area.type === "rectangle") {
     return `${area.label} · rectangle · ${Math.round(area.fetchRadiusNm)} NM fetch`;
   }
@@ -1135,7 +1201,7 @@ export default function App() {
     setDrawMode(true);
     setPickCenterMode(false);
     setDraftBounds(null);
-    setAreaNotice("Draw Area mode active: click two map corners.");
+    setAreaNotice("Pencil mode active: press, trace the boundary, then release to close it.");
   }
 
   function cancelDrawArea() {
@@ -1163,8 +1229,8 @@ export default function App() {
     setAreaNotice(`Monitoring ${area.label}.`);
   }
 
-  function applyDrawnArea(bounds) {
-    const area = makeRectangleArea(bounds);
+  function applyDrawnArea(points) {
+    const area = makePolygonArea(points);
     setFollowTarget(null);
     setMonitorArea(area);
     setDraftBounds(null);
