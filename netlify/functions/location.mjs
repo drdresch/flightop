@@ -9,7 +9,7 @@ export default async function handler(request) {
     const altitude = Number(requestUrl.searchParams.get("altitude"));
     if (lat == null || lon == null) throw new Error("Valid latitude and longitude are required.");
 
-    const zoom = Number.isFinite(altitude) && altitude < 3000 ? 16 : 12;
+    const zoom = Number.isFinite(altitude) && altitude < 3000 ? 17 : 14;
     const key = `${lat.toFixed(3)},${lon.toFixed(3)},${zoom}`;
     const cached = cache.get(key);
     if (cached && Date.now() - cached.savedAt < 60 * 60 * 1000) {
@@ -33,11 +33,20 @@ export default async function handler(request) {
 
     const data = await response.json();
     const address = data.address || {};
+    const feature =
+      address.water || address.reservoir || address.river || address.lake ||
+      address.waterway || address.natural || address.aeroway;
     const local =
       address.neighbourhood || address.suburb || address.quarter || address.city_district ||
       address.city || address.town || address.village || address.hamlet || address.county;
     const region = address.state_code || address.state || address.country;
-    const label = [local, region].filter(Boolean).filter((value, index, list) => list.indexOf(value) === index).join(", ");
+    const road = address.road || address.pedestrian || address.path;
+    const primary = feature || local || road;
+    const context = feature ? local : region;
+    const label = [primary, context, feature && region]
+      .filter(Boolean)
+      .filter((value, index, list) => list.indexOf(value) === index)
+      .join(", ");
     const value = { ok: true, label: label || data.display_name || "Location unavailable" };
     cache.set(key, { savedAt: Date.now(), value });
     return json(value);
