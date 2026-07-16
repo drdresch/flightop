@@ -6,6 +6,43 @@ function aircraftLabel(plane) {
   return plane.callsign || plane.registration || plane.hex || "UNKNOWN";
 }
 
+function aircraftHeading(plane) {
+  const heading = Number(plane.track ?? plane.heading ?? plane.trueTrack ?? plane.navHeading);
+  return Number.isFinite(heading) ? heading : 0;
+}
+
+function aircraftIcon(L, plane, selected) {
+  const emergency = Boolean(plane.emergency || plane.alert);
+  const size = selected ? 34 : 28;
+  const fill = emergency ? "#ff4d5a" : selected ? "#f0ad3d" : "#88ffd2";
+  const stroke = selected ? "#ffffff" : "#08110d";
+  const heading = aircraftHeading(plane);
+
+  return L.divIcon({
+    className: "aircraft-plane-marker",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    tooltipAnchor: [0, -(size / 2 + 2)],
+    html: `
+      <svg
+        width="${size}"
+        height="${size}"
+        viewBox="0 0 32 32"
+        aria-hidden="true"
+        style="display:block; transform:rotate(${heading}deg); transform-origin:50% 50%; filter:drop-shadow(0 1px 2px rgba(0,0,0,.55));"
+      >
+        <path
+          d="M16 2.2c-1 0-1.8.8-1.8 1.8v8.2L5.1 17v2.6l9.1-2.8v6.4l-3.2 2.2V28l5-1.5 5 1.5v-2.6l-3.2-2.2v-6.4l9.1 2.8V17l-9.1-4.8V4c0-1-.8-1.8-1.8-1.8Z"
+          fill="${fill}"
+          stroke="${stroke}"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        />
+      </svg>
+    `,
+  });
+}
+
 function areaBounds(bounds) {
   return [
     [bounds.south, bounds.west],
@@ -218,14 +255,13 @@ export default function RadarMap({
     aircraft
       .filter((plane) => Number.isFinite(plane.lat) && Number.isFinite(plane.lon))
       .forEach((plane) => {
-        const emergency = Boolean(plane.emergency || plane.alert);
-        const marker = L.circleMarker([plane.lat, plane.lon], {
-          radius: selectedAircraft?.id === plane.id ? 7 : 5,
-          color: emergency ? "#ff4d5a" : "#08110d",
-          fillColor: emergency ? "#ff4d5a" : "#88ffd2",
-          fillOpacity: 1,
-          opacity: 1,
-          weight: 2,
+        const selected = selectedAircraft?.id === plane.id;
+        const marker = L.marker([plane.lat, plane.lon], {
+          icon: aircraftIcon(L, plane, selected),
+          keyboard: true,
+          riseOnHover: true,
+          riseOffset: selected ? 1000 : 250,
+          title: aircraftLabel(plane),
         });
 
         marker.bindTooltip(aircraftLabel(plane), {
