@@ -954,6 +954,21 @@ dd {
   height: 22px;
 }
 
+.ops-aircraft-type-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ops-aircraft-type-line .ops-aircraft-type { margin-top: 0; }
+
+.ops-aircraft-type-icon {
+  width: clamp(30px, 3vw, 42px);
+  height: clamp(30px, 3vw, 42px);
+  margin-top: 12px;
+}
+
 .plane-row .right {
   text-align: right;
 }
