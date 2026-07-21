@@ -826,7 +826,11 @@ function AirlineMark({ identity }) {
   );
 }
 
-const MILITARY_TYPE_PREFIXES = ["K35", "KC10", "C17", "C5", "C130", "C30J", "E3", "E4", "B52", "B1", "B2", "F15", "F16", "F18", "F22", "F35", "V22", "P8"];
+const MILITARY_TYPE_PATTERNS = [
+  /^K35R?$/, /^KC10[A-Z]?$/, /^C17[A-Z]?$/, /^C5[ABCM]?$/, /^C130[A-Z0-9]*$/, /^C30J$/,
+  /^E3[A-Z]*$/, /^E4B?$/, /^B52H?$/, /^B1B$/, /^B2A$/, /^F15[A-Z]*$/, /^F16[A-Z]*$/,
+  /^F18[A-Z]*$/, /^F22[A-Z]*$/, /^F35[A-Z]*$/, /^V22[A-Z]*$/, /^P8A$/,
+];
 
 function aircraftVisualKind(aircraft) {
   const type = String(aircraft?.typeCode || "").toUpperCase();
@@ -834,9 +838,9 @@ function aircraftVisualKind(aircraft) {
     .filter(Boolean)
     .join(" ")
     .toUpperCase();
-  const military = MILITARY_TYPE_PREFIXES.some((prefix) => type.startsWith(prefix)) ||
+  const military = MILITARY_TYPE_PATTERNS.some((pattern) => pattern.test(type)) ||
     /MILITARY|AIR FORCE|USAF|US NAVY|US ARMY|MARINES|ROYAL AIR FORCE|LUFTWAFFE/.test(details);
-  if (military && /^(K35|KC10|C17|C5|C130|C30J|E3|E4|B52|B1|B2)/.test(type)) return "military-heavy";
+  if (military && /^(K35R?|KC10[A-Z]?|C17[A-Z]?|C5[ABCM]?|C130[A-Z0-9]*|C30J|E3[A-Z]*|E4B?|B52H?|B1B|B2A)$/.test(type)) return "military-heavy";
   if (military) return "military";
   if (/^(H|R22|R44|R66|B06|B407|B412|B429|S76|S92|A10|A11|A13|A14|EC|AS)/.test(type)) return "helicopter";
   if (/^(C1|C2|PA|BE|DA|SR|DH8|AT4|AT7|SF3|TBM|P28|P32)/.test(type)) return "light";
