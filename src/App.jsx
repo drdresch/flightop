@@ -931,7 +931,10 @@ function WallAircraftDisplay({
             <div className="ops-aircraft-copy">
               <span className="kicker">Operator / owner</span>
               <p className="ops-operator">{airlineIdentity.displayName}</p>
-              <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
+              <div className="ops-aircraft-type-line">
+                <img className="aircraft-type-icon ops-aircraft-type-icon" src={getAircraftIconPath(selectedAircraft)} alt="" aria-hidden="true" title={getAircraftIconLabel(selectedAircraft)} />
+                <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
+              </div>
               <div className="ops-flight-reference">
                 {hasDistinctCallsign && <b>{selectedAircraft.callsign}</b>}
                 {selectedAircraft.registration && <span>{selectedAircraft.registration}</span>}
