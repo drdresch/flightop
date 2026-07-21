@@ -906,7 +906,18 @@ function WallAircraftDisplay({
     if (hasSourceRoute || !/^[A-Z]{3}\d/.test(callsign)) return undefined;
 
     const controller = new AbortController();
-    fetch(`/api/route?callsign=${encodeURIComponent(callsign)}`, { signal: controller.signal })
+    const params = new URLSearchParams({
+      callsign,
+      hex: selectedAircraft.hex || "",
+      registration: selectedAircraft.registration || "",
+      lat: selectedAircraft.lat,
+      lon: selectedAircraft.lon,
+      track: selectedAircraft.track ?? "",
+      altitude: selectedAircraft.altitude === "ground" ? 0 : selectedAircraft.altitude ?? "",
+      speed: selectedAircraft.groundSpeed ?? "",
+      observedAt: Date.now(),
+    });
+    fetch(`/api/route?${params}`, { signal: controller.signal })
       .then((response) => response.json())
       .then((data) => {
         if (data?.ok && data.found && data.route && routeCandidateFitsAircraft(data.route, selectedAircraft)) {
@@ -916,7 +927,7 @@ function WallAircraftDisplay({
       .catch(() => {});
 
     return () => controller.abort();
-  }, [selectedAircraft?.callsign, selectedAircraft?.lat, selectedAircraft?.lon, selectedAircraft?.track, hasSourceRoute]);
+  }, [selectedAircraft?.hex, selectedAircraft?.registration, selectedAircraft?.callsign, selectedAircraft?.lat, selectedAircraft?.lon, selectedAircraft?.track, selectedAircraft?.altitude, selectedAircraft?.groundSpeed, hasSourceRoute]);
 
   const displayTickerText = selectedAircraft
     ? `${aircraftTypeLabel(selectedAircraft)} ${resolvedLocation.toLowerCase()} at ${formatAlt(selectedAircraft.altitude)}, ${movementState(selectedAircraft).toLowerCase()}.${hasDisplayRoute ? ` Route ${formatRoute(displayRoute)}.` : " Route unavailable."}`
@@ -953,7 +964,7 @@ function WallAircraftDisplay({
           </section>
 
           <section className="ops-journey">
-            <span className="kicker">{hasDisplayRoute ? (hasSourceRoute ? "Flight route" : "Route candidate") : "Current position"}</span>
+            <span className="kicker">{hasDisplayRoute ? (hasSourceRoute ? "Confirmed route" : displayRoute.routeConfidence || "Likely route") : "Current position"}</span>
             {hasDisplayRoute && routeOrigin && routeDestination ? (
               <div className="ops-route-codes">
                 <div className="ops-route-airport">
