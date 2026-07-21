@@ -965,9 +965,9 @@ dd {
 .ops-aircraft-type-line .ops-aircraft-type { margin-top: 0; }
 
 .ops-aircraft-type-icon {
-  width: clamp(42px, 4vw, 58px);
-  height: clamp(42px, 4vw, 58px);
-  margin-top: 8px;
+  width: clamp(76px, 7vw, 108px);
+  height: clamp(76px, 7vw, 108px);
+  margin-top: 0;
   opacity: .82;
 }
 
