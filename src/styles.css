@@ -935,8 +935,8 @@ dd {
 .plane-row-primary > span { min-width: 0; }
 
 .aircraft-type-icon {
-  width: 24px;
-  height: 24px;
+  width: 27px;
+  height: 27px;
   flex: 0 0 auto;
   object-fit: contain;
   opacity: .9;
@@ -951,8 +951,8 @@ dd {
 }
 
 .ops-upcoming-flight .aircraft-type-icon {
-  width: 22px;
-  height: 22px;
+  width: 25px;
+  height: 25px;
 }
 
 .ops-aircraft-type-line {
@@ -965,9 +965,9 @@ dd {
 .ops-aircraft-type-line .ops-aircraft-type { margin-top: 0; }
 
 .ops-aircraft-type-icon {
-  width: clamp(30px, 3vw, 42px);
-  height: clamp(30px, 3vw, 42px);
-  margin-top: 12px;
+  width: clamp(42px, 4vw, 58px);
+  height: clamp(42px, 4vw, 58px);
+  margin-top: 8px;
   opacity: .82;
 }
 
@@ -976,7 +976,7 @@ dd {
 }
 
 @media (max-width: 700px) {
-  .aircraft-type-icon { width: 21px; height: 21px; }
+  .aircraft-type-icon { width: 24px; height: 24px; }
   .plane-row-primary { gap: 7px; }
 }
 
