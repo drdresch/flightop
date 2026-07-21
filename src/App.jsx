@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { getAirlineIdentity } from "./lib/airlines.js";
 import { formatRoute, formatRouteDetail, getRouteForAircraft } from "./lib/routeResolver.js";
+import { getAircraftIconLabel, getAircraftIconPath } from "./lib/aircraftIcons.js";
 import "./styles.css";
 
 const RadarMap = lazy(() => import("./RadarMap.jsx"));
@@ -1589,7 +1590,10 @@ export default function App() {
                       setRotationPaused(true);
                     }}
                   >
-                    <span>{aircraftLabel(plane)}</span>
+                    <span className="ops-upcoming-flight">
+                      <img className="aircraft-type-icon" src={getAircraftIconPath(plane)} alt="" aria-hidden="true" title={getAircraftIconLabel(plane)} />
+                      <span>{aircraftLabel(plane)}</span>
+                    </span>
                     <small>{formatAlt(plane.altitude)} · {formatRoute(plane)}</small>
                   </button>
                 ))}
@@ -1775,9 +1779,12 @@ export default function App() {
                   className={plane.id === selectedAircraft?.id ? "plane-row active" : "plane-row"}
                   onClick={() => selectPlane(plane)}
                 >
-                  <span>
+                  <span className="plane-row-primary">
+                    <img className="aircraft-type-icon" src={getAircraftIconPath(plane)} alt="" aria-hidden="true" title={getAircraftIconLabel(plane)} />
+                    <span>
                     <b>{aircraftLabel(plane)}</b>
                     <small>{aircraftTypeLabel(plane)}</small>
+                    </span>
                   </span>
                   <span className="right">
                     <b>{formatAlt(plane.altitude)}</b>
