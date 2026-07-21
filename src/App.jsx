@@ -826,6 +826,50 @@ function AirlineMark({ identity }) {
   );
 }
 
+const MILITARY_TYPE_PREFIXES = ["K35", "KC10", "C17", "C5", "C130", "C30J", "E3", "E4", "B52", "B1", "B2", "F15", "F16", "F18", "F22", "F35", "V22", "P8"];
+
+function aircraftVisualKind(aircraft) {
+  const type = String(aircraft?.typeCode || "").toUpperCase();
+  const details = [aircraft?.operator, aircraft?.description, aircraft?.raw?.owner, aircraft?.raw?.category]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+  const military = MILITARY_TYPE_PREFIXES.some((prefix) => type.startsWith(prefix)) ||
+    /MILITARY|AIR FORCE|USAF|US NAVY|US ARMY|MARINES|ROYAL AIR FORCE|LUFTWAFFE/.test(details);
+  if (military && /^(K35|KC10|C17|C5|C130|C30J|E3|E4|B52|B1|B2)/.test(type)) return "military-heavy";
+  if (military) return "military";
+  if (/^(H|R22|R44|R66|B06|B407|B412|B429|S76|S92|A10|A11|A13|A14|EC|AS)/.test(type)) return "helicopter";
+  if (/^(C1|C2|PA|BE|DA|SR|DH8|AT4|AT7|SF3|TBM|P28|P32)/.test(type)) return "light";
+  if (/^(A3|A35|A38|B74|B76|B77|B78|MD11)/.test(type)) return "widebody";
+  return "jet";
+}
+
+function AircraftVisual({ aircraft }) {
+  const kind = aircraftVisualKind(aircraft);
+  const labels = {
+    light: "Light aircraft",
+    jet: "Jet aircraft",
+    widebody: "Large airliner",
+    helicopter: "Helicopter",
+    military: "Military aircraft",
+    "military-heavy": "Military heavy / tanker",
+  };
+  const paths = {
+    light: "M7 38 L49 34 L59 17 L66 17 L62 34 L87 34 L98 25 L104 25 L99 37 L113 37 L113 42 L99 42 L104 53 L98 53 L87 42 L62 42 L66 58 L59 58 L49 42 L7 38Z",
+    jet: "M5 38 L45 34 L59 7 L68 7 L63 34 L89 34 L103 21 L110 21 L103 37 L115 37 L115 43 L103 43 L110 59 L103 59 L89 43 L63 43 L68 68 L59 68 L45 43 L5 38Z",
+    widebody: "M4 39 L42 34 L58 4 L70 4 L64 34 L91 34 L106 18 L114 18 L106 38 L118 38 L118 45 L106 45 L114 65 L106 65 L91 45 L64 45 L70 76 L58 76 L42 45 L4 39Z",
+    helicopter: "M13 21 L108 21 L108 24 L13 24 Z M42 25 C40 25 38 42 52 46 L77 46 C89 41 84 27 84 27 L75 25 L75 32 L49 32 L49 25 Z M84 35 L113 31 L113 35 L85 39 Z M47 48 L43 57 L48 57 L53 49 M72 48 L77 57 L82 57 L78 47",
+    military: "M5 39 L42 34 L58 9 L69 9 L63 34 L90 34 L103 22 L111 22 L104 38 L116 38 L116 44 L104 44 L111 60 L103 60 L90 44 L63 44 L69 69 L58 69 L42 44 L5 39Z",
+    "military-heavy": "M4 40 L38 35 L57 5 L72 5 L65 35 L94 35 L108 19 L116 19 L108 39 L120 39 L120 46 L108 46 L116 66 L108 66 L94 46 L65 46 L72 78 L57 78 L38 46 L4 40Z",
+  };
+  return (
+    <div className={"ops-aircraft-visual ops-visual-" + kind} aria-label={labels[kind]}>
+      <svg viewBox="0 0 124 82" aria-hidden="true"><path d={paths[kind]} /></svg>
+      <span>{labels[kind]}</span>
+    </div>
+  );
+}
+
 function WallAircraftDisplay({
   activeScanMode,
   displayedAircraftCount,
@@ -931,6 +975,7 @@ function WallAircraftDisplay({
               <span className="kicker">Operator / owner</span>
               <p className="ops-operator">{airlineIdentity.displayName}</p>
               <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
+              <AircraftVisual aircraft={selectedAircraft} />
               <div className="ops-flight-reference">
                 {hasDistinctCallsign && <b>{selectedAircraft.callsign}</b>}
                 {selectedAircraft.registration && <span>{selectedAircraft.registration}</span>}
