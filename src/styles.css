@@ -1223,9 +1223,6 @@ dd {
   text-transform: uppercase;
 }
 
-.ops-airline-badge { --badge-color: #88ffd2; display: grid; place-items: center; align-self: center; width: clamp(54px, 7vw, 96px); aspect-ratio: .82; padding: 6px; color: #08110d; background: var(--badge-color); clip-path: polygon(50% 0, 91% 15%, 84% 67%, 50% 100%, 16% 67%, 9% 15%); box-shadow: 0 0 24px rgba(136,255,210,.18); text-align: center; }
-.ops-airline-badge span { font-size: clamp(8px,.75vw,11px); font-weight: 700; letter-spacing: .03em; line-height: 1.15; }
-
 .ops-show-map {
   align-self: flex-start;
   margin-top: 22px;
@@ -1393,28 +1390,15 @@ body {
 
 .ops-display {
   display: grid;
-  grid-template-columns: clamp(160px, 17vw, 280px) minmax(0, 1.05fr) minmax(0, .9fr) minmax(300px, .62fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .9fr) minmax(300px, .62fr);
   min-width: 0;
   min-height: 0;
   padding: clamp(22px, 3vw, 52px);
 }
 
-.ops-aircraft-photo,.ops-aircraft-silhouette { grid-column: 1; }
-.ops-aircraft-identity { grid-column: 2; }
-.ops-journey { grid-column: 3; }
-.ops-readouts { grid-column: 4; }
 .ops-aircraft-identity,
 .ops-journey,
 .ops-readouts { min-width: 0; min-height: 0; }
-
-.ops-aircraft-photo,.ops-aircraft-silhouette { align-self: center; min-width: 0; min-height: 0; padding-right: clamp(16px,2vw,32px); border-right: 1px solid #323539; }
-.ops-aircraft-photo { display: flex; flex-direction: column; gap: 8px; }
-.ops-aircraft-photo img { display: block; width: 100%; max-height: 46vh; border-radius: 4px; object-fit: cover; filter: saturate(.85) contrast(1.05); }
-.ops-aircraft-photo figcaption { color: #6f7276; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
-.ops-aircraft-photo figcaption a { color: inherit; text-decoration: none; }
-.ops-aircraft-photo figcaption a:hover { text-decoration: underline; }
-.ops-aircraft-silhouette svg { display: block; width: 100%; height: auto; max-height: 30vh; fill: #4a4f54; stroke: none; }
-.ops-silhouette-helicopter svg,.ops-silhouette-propeller svg { fill: #3d4247; }
 
 .ops-aircraft-identity {
   position: relative;
@@ -1543,8 +1527,6 @@ body {
   .mode-glyph { display: none; }
   .wall-sign.ops-wall-sign { height: auto; grid-template-rows: auto auto; }
   .ops-display { grid-template-columns: 1fr; padding: 26px 20px; }
-  .ops-aircraft-photo,.ops-aircraft-silhouette,.ops-aircraft-identity,.ops-journey,.ops-readouts { grid-column: 1; }
-  .ops-aircraft-photo,.ops-aircraft-silhouette { padding: 0 0 24px; border: 0; border-bottom: 1px solid #323539; }
   .ops-aircraft-identity { grid-template-columns: 50px minmax(0, 1fr); padding: 0 0 28px; border: 0; border-bottom: 1px solid #323539; }
   .ops-aircraft-mark i { width: 48px; height: 12px; }
   .ops-aircraft-type { font-size: clamp(36px, 11vw, 62px); }
