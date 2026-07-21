@@ -940,7 +940,7 @@ dd {
   flex: 0 0 auto;
   object-fit: contain;
   opacity: .9;
-  filter: brightness(0) saturate(100%) invert(73%) sepia(57%) saturate(582%) hue-rotate(349deg) brightness(98%) contrast(92%);
+  filter: brightness(0) invert(1);
   pointer-events: none;
 }
 
