@@ -1018,7 +1018,7 @@ function WallAircraftDisplay({
             <div className="ops-atc">
               <span className="ops-metric-icon">ATC</span>
               <div>
-                <small>Likely ATC · {selectedAtc.confidence} confidence</small>
+                <small>Nearby ATC · {selectedAtc.confidence} confidence</small>
                 <strong>{selectedAtc.primary.facility}</strong>
                 <p>{selectedAtc.primary.frequencies.join(" / ")}</p>
                 <a href={selectedAtc.liveAtcUrl || LIVE_ATC_HOME_URL} target="_blank" rel="noreferrer">Listen on LiveATC</a>
