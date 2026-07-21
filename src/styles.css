@@ -2713,3 +2713,36 @@ body {
   .ops-aircraft-identity,
   .ops-journey { border: 0; }
 }
+
+.ops-aircraft-visual {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  margin-top: 14px;
+  color: #8f969d;
+}
+.ops-aircraft-visual svg { width: 68px; height: 42px; flex: 0 0 auto; fill: currentColor; }
+.ops-aircraft-visual span { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ops-visual-light { color: #8dcbb8; }
+.ops-visual-widebody { color: #b8c5d2; }
+.ops-visual-helicopter { color: #d6b775; }
+.ops-visual-military, .ops-visual-military-heavy { color: #9fa7ad; }
+.ops-visual-military-heavy span::before { content: "✦ "; color: #d6b775; }
+
+.ops-police-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: clamp(54px, 7vw, 96px);
+  aspect-ratio: 1;
+  color: #dcecff;
+  background: transparent;
+  clip-path: none;
+  box-shadow: none;
+}
+.ops-police-mark svg { width: 100%; height: 100%; fill: #3e6f9e; stroke: #bcd9f4; stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 10px rgba(87,151,215,.26)); }
+.ops-police-mark svg circle { fill: #183650; }
+.ops-police-mark span { position: absolute; color: #eef7ff; font-size: clamp(7px,.7vw,10px); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+@media (max-width: 850px) { .ops-aircraft-visual { margin-top: 10px; } .ops-aircraft-visual svg { width: 55px; height: 34px; } }
