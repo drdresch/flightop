@@ -806,7 +806,7 @@ function AirlineMark({ identity }) {
   useEffect(() => setLogoFailed(false), [identity.logoPath]);
 
   if (identity.type === "law-enforcement") {
-    return <div className="ops-police-mark" aria-label="Law enforcement aircraft"><span>Police</span></div>;
+    return <div className="ops-police-mark" aria-label="Law enforcement aircraft"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 5 L60 30 L87 20 L72 43 L96 53 L70 60 L74 88 L52 70 L31 90 L33 62 L5 51 L31 42 L16 18 L43 30 Z" /><circle cx="50" cy="50" r="16" /></svg><span>Police</span></div>;
   }
 
   if (identity.logoPath && !logoFailed) {
