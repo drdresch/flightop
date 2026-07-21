@@ -1,8 +1,6 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { getAirlineIdentity } from "./lib/airlines.js";
 import { formatRoute, formatRouteDetail, getRouteForAircraft } from "./lib/routeResolver.js";
-import { fetchAircraftPhoto } from "./lib/planespotters.js";
-import { getAircraftSilhouette } from "./lib/aircraftCategory.js";
 import "./styles.css";
 
 const RadarMap = lazy(() => import("./RadarMap.jsx"));
@@ -819,10 +817,6 @@ function AirlineMark({ identity }) {
     );
   }
 
-  if (identity.shortName && identity.type !== "unknown") {
-    return <div className="ops-airline-badge" style={identity.accentColor ? { "--badge-color": identity.accentColor } : undefined} aria-hidden="true"><span>{identity.shortName}</span></div>;
-  }
-
   return (
     <div className="ops-aircraft-mark" aria-hidden="true">
       <i />
@@ -830,26 +824,6 @@ function AirlineMark({ identity }) {
       <i />
     </div>
   );
-}
-
-function AircraftPhoto({ aircraft }) {
-  const [photo, setPhoto] = useState(null);
-  const [status, setStatus] = useState("idle");
-  const silhouette = useMemo(() => getAircraftSilhouette(aircraft?.typeCode), [aircraft?.typeCode]);
-  useEffect(() => {
-    setPhoto(null);
-    if (!aircraft?.hex) { setStatus("idle"); return undefined; }
-    const controller = new AbortController();
-    setStatus("loading");
-    fetchAircraftPhoto(aircraft, { signal: controller.signal }).then((result) => {
-      setPhoto(result); setStatus(result ? "found" : "missing");
-    }).catch((error) => { if (error?.name !== "AbortError") setStatus("missing"); });
-    return () => controller.abort();
-  }, [aircraft?.hex, aircraft?.registration, aircraft?.typeCode]);
-  if (status === "found" && photo) {
-    return <figure className="ops-aircraft-photo"><img src={photo.src} alt="" loading="lazy" />{photo.photographer && <figcaption>{photo.link ? <a href={photo.link} target="_blank" rel="noopener noreferrer">Photo &copy; {photo.photographer} / Planespotters.net</a> : <>Photo &copy; {photo.photographer} / Planespotters.net</>}</figcaption>}</figure>;
-  }
-  return <div className={`ops-aircraft-silhouette ops-silhouette-${silhouette.category}`} dangerouslySetInnerHTML={{ __html: silhouette.markup }} />;
 }
 
 function WallAircraftDisplay({
@@ -951,7 +925,6 @@ function WallAircraftDisplay({
     <section className="wall-sign ops-wall-sign" aria-label="Flyover wall display">
       {selectedAircraft ? (
         <div className="ops-display">
-          <AircraftPhoto aircraft={selectedAircraft} />
           <section className="ops-aircraft-identity">
             <AirlineMark identity={airlineIdentity} />
             <div className="ops-aircraft-copy">

@@ -14,11 +14,6 @@ const AIRLINE_LOGOS = {
   AAY: ["allegiantair"],
   QXE: ["horizonair"],
   SKW: ["skywestairlines"],
-  AAL: ["americanairlines"],
-  ACA: ["aircanada"],
-  FDX: ["fedex"],
-  UPS: ["ups"],
-  JBU: ["jetblue"],
 };
 
 await mkdir(new URL("../public/logos/", import.meta.url), { recursive: true });
