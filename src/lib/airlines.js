@@ -24,6 +24,7 @@ export const AIRLINES = {
   PDT: airline("PDT", "Piedmont Airlines", "Piedmont", "regional", "#8aa0b1"),
   WJA: airline("WJA", "WestJet", "WestJet", "passenger", "#58a9a0"),
   GTI: airline("GTI", "Atlas Air", "Atlas Air", "cargo", "#4a78ae"),
+  VOI: { ...airline("VOI", "Viva Aerobus (Mexico)", "Viva Aerobus", "passenger", "#55a76a"), logoPath: null },
 };
 
 function airline(prefix, displayName, shortName, type, accentColor) {

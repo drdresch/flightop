@@ -925,8 +925,59 @@ dd {
   color: var(--letter);
 }
 
+.plane-row-primary {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 9px;
+}
+
+.plane-row-primary > span { min-width: 0; }
+
+.aircraft-type-icon {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  opacity: .9;
+  filter: brightness(0) invert(1);
+  pointer-events: none;
+}
+
+.ops-upcoming-flight {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ops-upcoming-flight .aircraft-type-icon {
+  width: 25px;
+  height: 25px;
+}
+
+.ops-aircraft-type-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ops-aircraft-type-line .ops-aircraft-type { margin-top: 0; }
+
+.ops-aircraft-type-icon {
+  width: clamp(76px, 7vw, 108px);
+  height: clamp(76px, 7vw, 108px);
+  margin-top: 0;
+  opacity: .82;
+}
+
 .plane-row .right {
   text-align: right;
+}
+
+@media (max-width: 700px) {
+  .aircraft-type-icon { width: 24px; height: 24px; }
+  .plane-row-primary { gap: 7px; }
 }
 
 .maplibregl-ctrl-bottom-left,

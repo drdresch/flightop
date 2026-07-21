@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { getAirlineIdentity } from "./lib/airlines.js";
 import { formatRoute, formatRouteDetail, getRouteForAircraft } from "./lib/routeResolver.js";
+import { getAircraftIconLabel, getAircraftIconPath } from "./lib/aircraftIcons.js";
 import "./styles.css";
 
 const RadarMap = lazy(() => import("./RadarMap.jsx"));
@@ -930,7 +931,10 @@ function WallAircraftDisplay({
             <div className="ops-aircraft-copy">
               <span className="kicker">Operator / owner</span>
               <p className="ops-operator">{airlineIdentity.displayName}</p>
-              <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
+              <div className="ops-aircraft-type-line">
+                <img className="aircraft-type-icon ops-aircraft-type-icon" src={getAircraftIconPath(selectedAircraft)} alt="" aria-hidden="true" title={getAircraftIconLabel(selectedAircraft)} />
+                <strong className="ops-aircraft-type">{aircraftTypeLabel(selectedAircraft)}</strong>
+              </div>
               <div className="ops-flight-reference">
                 {hasDistinctCallsign && <b>{selectedAircraft.callsign}</b>}
                 {selectedAircraft.registration && <span>{selectedAircraft.registration}</span>}
@@ -1589,7 +1593,10 @@ export default function App() {
                       setRotationPaused(true);
                     }}
                   >
-                    <span>{aircraftLabel(plane)}</span>
+                    <span className="ops-upcoming-flight">
+                      <img className="aircraft-type-icon" src={getAircraftIconPath(plane)} alt="" aria-hidden="true" title={getAircraftIconLabel(plane)} />
+                      <span>{aircraftLabel(plane)}</span>
+                    </span>
                     <small>{formatAlt(plane.altitude)} · {formatRoute(plane)}</small>
                   </button>
                 ))}
@@ -1775,9 +1782,12 @@ export default function App() {
                   className={plane.id === selectedAircraft?.id ? "plane-row active" : "plane-row"}
                   onClick={() => selectPlane(plane)}
                 >
-                  <span>
+                  <span className="plane-row-primary">
+                    <img className="aircraft-type-icon" src={getAircraftIconPath(plane)} alt="" aria-hidden="true" title={getAircraftIconLabel(plane)} />
+                    <span>
                     <b>{aircraftLabel(plane)}</b>
                     <small>{aircraftTypeLabel(plane)}</small>
+                    </span>
                   </span>
                   <span className="right">
                     <b>{formatAlt(plane.altitude)}</b>
