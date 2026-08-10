@@ -1,7 +1,6 @@
 [build]
   command = "npm run build"
   publish = "dist"
-  functions = "netlify/functions"
 
 [dev]
   command = "npm run dev"
@@ -9,17 +8,14 @@
   port = 8888
   publish = "dist"
 
-[[redirects]]
-  from = "/api/aircraft"
-  to = "/.netlify/functions/aircraft"
-  status = 200
+[[edge_functions]]
+  path = "/api/aircraft"
+  function = "aircraft"
 
-[[redirects]]
-  from = "/api/location"
-  to = "/.netlify/functions/location"
-  status = 200
+[[edge_functions]]
+  path = "/api/location"
+  function = "location"
 
-[[redirects]]
-  from = "/api/route"
-  to = "/.netlify/functions/route"
-  status = 200
+[[edge_functions]]
+  path = "/api/route"
+  function = "route"
